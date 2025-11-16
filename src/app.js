@@ -19,8 +19,22 @@ const { setupSwagger } = require('./config/swagger');
 
 const app = express();
 
-// Security middleware
+// Security middleware - Configure helmet FIRST with proper CSP
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", "http://localhost:3000", "http://localhost:*"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        imgSrc: ["'self'", "data:", "validator.swagger.io"],
+      },
+    },
+  })
+);
 
+// CORS configuration
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true
@@ -78,20 +92,6 @@ app.get('/health', (req, res) => {
     uptime: process.uptime()
   });
 });
-
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: ["'self'", "http://localhost:3000"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        imgSrc: ["'self'", "data:", "validator.swagger.io"],
-      },
-    },
-  })
-);
 
 // API Routes
 app.use('/api/auth', authModule.router);
