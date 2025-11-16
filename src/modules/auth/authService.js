@@ -45,7 +45,7 @@ class AuthService {
   }
 
   // Create session
-  static async createSession(userId, deviceInfo, ipAddress, userAgent) {
+  static async createSession(userId, deviceInfo, ipAddress, userAgent, refreshToken) {
     const sessionId = uuidv4();
     const sessionData = {
       sessionId,
@@ -60,7 +60,7 @@ class AuthService {
     // Store in Redis
     await redisClient.setSession(sessionId, sessionData, 7 * 24 * 60 * 60); // 7 days
 
-    // Store in database
+    // Store in database with refreshToken
     await database.getClient().session.create({
       data: {
         sessionId,
@@ -68,6 +68,7 @@ class AuthService {
         deviceInfo: JSON.stringify(deviceInfo),
         ipAddress,
         userAgent,
+        refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
       }
     });
@@ -103,7 +104,8 @@ class AuthService {
           status: 'PENDING_VERIFICATION'
         }
       });
-      console.log("user ==>",user)
+      console.log("user ==>", user);
+
       // Create profile based on role
       if (validatedData.role === 'VENDOR') {
         await database.getClient().vendorProfile.create({
@@ -167,10 +169,10 @@ class AuthService {
       }
       throw error;
     }
-      // helper creates a short-lived email verification token and stores it in DB
-      // Implemented using RefreshToken table for simplicity (separate type could be added)
   }
 
+  // Helper creates a short-lived email verification token and stores it in DB
+  // Implemented using RefreshToken table for simplicity (separate type could be added)
   static async createEmailVerificationToken(userId) {
     const token = uuidv4();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
@@ -229,25 +231,50 @@ class AuthService {
       }
 
       // Check user status
-     
-        await AuditLogger.log({
-          userId: user.id,
-          action: 'LOGIN',
-          level: 'WARN',
-          message: 'Failed login attempt - user not active',
-          ipAddress,
-          userAgent,
-          details: { status: user.status }
-        });
-      
+      await AuditLogger.log({
+        userId: user.id,
+        action: 'LOGIN',
+        level: 'WARN',
+        message: 'Failed login attempt - user not active',
+        ipAddress,
+        userAgent,
+        details: { status: user.status }
+      });
 
-      // Create session
-      const sessionId = await this.createSession(user.id, deviceInfo, ipAddress, userAgent);
+      // Generate sessionId first
+      const sessionId = uuidv4();
 
-      // Generate tokens
+      // Generate tokens with the sessionId
       const { accessToken, refreshToken } = this.generateTokens(user.id, sessionId, user.role);
 
-      // Store refresh token
+      // Create session data for Redis
+      const sessionData = {
+        sessionId,
+        userId: user.id,
+        deviceInfo,
+        ipAddress,
+        userAgent,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString()
+      };
+
+      // Store in Redis
+      await redisClient.setSession(sessionId, sessionData, 7 * 24 * 60 * 60); // 7 days
+
+      // Store in database WITH refreshToken
+      await database.getClient().session.create({
+        data: {
+          sessionId,
+          userId: user.id,
+          deviceInfo: JSON.stringify(deviceInfo),
+          ipAddress,
+          userAgent,
+          refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        }
+      });
+
+      // Store refresh token in RefreshToken table
       await database.getClient().refreshToken.create({
         data: {
           userId: user.id,
