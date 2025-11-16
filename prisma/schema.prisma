@@ -1,0 +1,225 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  VENDOR
+  MENTOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
+
+enum ActionType {
+  LOGIN
+  LOGOUT
+  REGISTER
+  UPDATE_PROFILE
+  CHANGE_PASSWORD
+  RESET_PASSWORD
+  CREATE_USER
+  UPDATE_USER
+  DELETE_USER
+  ASSIGN_ROLE
+  REVOKE_ROLE
+  CREATE_SESSION
+  REVOKE_SESSION
+  API_CALL
+  SYSTEM_EVENT
+}
+
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  username          String?     @unique
+  password          String
+  firstName         String?
+  lastName          String?
+  phone             String?
+  avatar            String?
+  role              UserRole    @default(USER)
+  status            UserStatus  @default(PENDING_VERIFICATION)
+  emailVerified     Boolean     @default(false)
+  phoneVerified     Boolean     @default(false)
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  lastLoginUserAgent String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  permissions       UserPermission[]
+  refreshTokens     RefreshToken[]
+  vendorProfile     VendorProfile?
+  mentorProfile     MentorProfile?
+
+  @@map("users")
+}
+
+model VendorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName String
+  businessType String
+  description String?
+  website     String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  zipCode     String?
+  taxId       String?
+  licenseNumber String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("vendor_profiles")
+}
+
+model MentorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expertise   String[]
+  experience  Int      // years of experience
+  bio         String?
+  hourlyRate  Float?
+  availability String?
+  isVerified  Boolean  @default(false)
+  rating      Float?
+  totalReviews Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("mentor_profiles")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions Permission[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  resource    String   // e.g., 'users', 'products', 'orders'
+  action      String   // e.g., 'create', 'read', 'update', 'delete'
+  roles       Role[]
+  users       UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now())
+  grantedBy    String?    // User ID who granted this permission
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model Session {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId   String        @unique
+  refreshToken String       @unique
+  deviceInfo  String?       // JSON string with device info
+  ipAddress   String?
+  userAgent   String?
+  location    String?       // City, Country
+  status      SessionStatus @default(ACTIVE)
+  expiresAt   DateTime
+  lastUsedAt  DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String    @unique
+  expiresAt   DateTime
+  isRevoked   Boolean   @default(false)
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id          String     @id @default(cuid())
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      ActionType
+  resource    String?    // e.g., 'User', 'Product', 'Order'
+  resourceId  String?    // ID of the affected resource
+  details     Json?      // Additional details about the action
+  ipAddress   String?
+  userAgent   String?
+  level       LogLevel   @default(INFO)
+  message     String
+  metadata    Json?      // Additional metadata
+  createdAt   DateTime   @default(now())
+
+  @@map("audit_logs")
+}
+
+model RateLimit {
+  id          String   @id @default(cuid())
+  identifier  String   // IP address, user ID, or session ID
+  endpoint    String   // API endpoint
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([identifier, endpoint, windowStart])
+  @@map("rate_limits")
+}
