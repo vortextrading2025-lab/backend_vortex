@@ -79,6 +79,20 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", "http://localhost:3000"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        imgSrc: ["'self'", "data:", "validator.swagger.io"],
+      },
+    },
+  })
+);
+
 // API Routes
 app.use('/api/auth', authModule.router);
 app.use('/api/users', userModule.router);
