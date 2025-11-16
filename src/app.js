@@ -20,7 +20,7 @@ const { setupSwagger } = require('./config/swagger');
 const app = express();
 
 // Security middleware
-app.use(helmet());
+
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true
