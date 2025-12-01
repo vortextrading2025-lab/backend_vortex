@@ -1,39 +1,89 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const path = require('path');
+
+// Determine environment and set appropriate server URLs
+const getServerConfig = () => {
+  const env = process.env.NODE_ENV || 'development';
+  const apiUrl = process.env.API_URL;
+  
+  const servers = [];
+
+  // Always add the current environment's server first
+  if (env === 'production') {
+    servers.push({
+      url: apiUrl || 'https://api.vortexbonus.com',
+      description: 'Production server'
+    });
+  } else if (env === 'development' && apiUrl && apiUrl.includes('api-dev.vortexbonus.com')) {
+    // Development server (deployed)
+    servers.push({
+      url: apiUrl,
+      description: 'Development server (Deployed)'
+    });
+  } else {
+    // Local development
+    servers.push({
+      url: apiUrl || 'http://localhost:3000',
+      description: 'Local development server'
+    });
+  }
+
+  // Add other environments as alternatives (for testing)
+  if (env !== 'production') {
+    servers.push({
+      url: 'http://localhost:3000',
+      description: 'Local development'
+    });
+  }
+  
+  if (env !== 'development') {
+    servers.push({
+      url: 'https://api-dev.vortexbonus.com',
+      description: 'Development server'
+    });
+  }
+  
+  if (env !== 'production') {
+    servers.push({
+      url: 'https://api.vortexbonus.com',
+      description: 'Production server'
+    });
+  }
+
+  return servers;
+};
 
 const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Express Prisma Boilerplate API',
+      title: 'VortexBonus API',
       version: '1.0.0',
       description: 'A comprehensive authentication and user management API with RBAC, session management, and audit logging',
       contact: {
         name: 'API Support',
-        email: 'support@example.com'
+        email: 'support@vortexbonus.com'
       },
       license: {
         name: 'MIT',
         url: 'https://opensource.org/licenses/MIT'
       }
     },
-    servers: [
-      {
-        url: process.env.API_URL || 'http://localhost:3000',
-        description: 'Development server'
-      }
-    ],
+    servers: getServerConfig(),
     components: {
       securitySchemes: {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT'
+          bearerFormat: 'JWT',
+          description: 'Enter your JWT token in the format: your-token-here'
         },
         cookieAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'refreshToken'
+          name: 'refreshToken',
+          description: 'Refresh token stored in HTTP-only cookie'
         }
       },
       schemas: {
@@ -82,8 +132,8 @@ const options = {
           type: 'object',
           required: ['email', 'password'],
           properties: {
-            email: { type: 'string', format: 'email', example: 'user@example.com' },
-            password: { type: 'string', example: 'SecurePass123!' }
+            email: { type: 'string', format: 'email', example: 'bhanushaily3@gmail.com' },
+            password: { type: 'string', example: '123456' }
           }
         },
         AuthResponse: {
@@ -96,105 +146,16 @@ const options = {
               properties: {
                 user: { $ref: '#/components/schemas/User' },
                 accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
                 sessionId: { type: 'string', example: 'sess_1234567890abcdef' }
               }
             }
-          }
-        },
-        AvatarUpdateRequest: {
-          type: 'object',
-          required: ['avatar'],
-          properties: {
-            avatar: { 
-              type: 'string', 
-              format: 'uri',
-              example: 'https://example.com/new-avatar.jpg',
-              description: 'URL of the new avatar image'
-            }
-          }
-        },
-        SessionInfo: {
-          type: 'object',
-          properties: {
-            sessionId: { type: 'string', example: 'sess_1234567890abcdef' },
-            deviceInfo: {
-              type: 'object',
-              properties: {
-                userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-                ip: { type: 'string', example: '192.168.1.1' },
-                timestamp: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' }
-              }
-            },
-            ipAddress: { type: 'string', example: '192.168.1.1' },
-            userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-            location: { type: 'string', example: 'New York, US' },
-            lastUsedAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' },
-            createdAt: { type: 'string', format: 'date-time', example: '2024-01-15T09:00:00Z' }
-          }
-        },
-        ActiveSessionsResponse: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean', example: true },
-            message: { type: 'string', example: 'Active sessions retrieved successfully' },
-            data: {
-              type: 'object',
-              properties: {
-                sessions: {
-                  type: 'array',
-                  items: { $ref: '#/components/schemas/SessionInfo' }
-                },
-                totalSessions: { type: 'integer', example: 3 },
-                currentSession: { type: 'string', example: 'sess_1234567890abcdef' }
-              }
-            }
-          }
-        },
-        Session: {
-          type: 'object',
-          properties: {
-            sessionId: { type: 'string' },
-            deviceInfo: { type: 'object' },
-            ipAddress: { type: 'string' },
-            userAgent: { type: 'string' },
-            location: { type: 'string' },
-            lastUsedAt: { type: 'string', format: 'date-time' },
-            createdAt: { type: 'string', format: 'date-time' }
-          }
-        },
-        AuditLog: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            userId: { type: 'string' },
-            action: { 
-              type: 'string',
-              enum: ['LOGIN', 'LOGOUT', 'REGISTER', 'UPDATE_PROFILE', 'CHANGE_PASSWORD', 'RESET_PASSWORD', 'CREATE_USER', 'UPDATE_USER', 'DELETE_USER', 'ASSIGN_ROLE', 'REVOKE_ROLE', 'CREATE_SESSION', 'REVOKE_SESSION', 'API_CALL', 'SYSTEM_EVENT']
-            },
-            resource: { type: 'string' },
-            resourceId: { type: 'string' },
-            details: { type: 'object' },
-            ipAddress: { type: 'string' },
-            userAgent: { type: 'string' },
-            level: { 
-              type: 'string',
-              enum: ['INFO', 'WARN', 'ERROR', 'DEBUG']
-            },
-            message: { type: 'string' },
-            metadata: { type: 'object' },
-            createdAt: { type: 'string', format: 'date-time' }
           }
         },
         Error: {
           type: 'object',
           properties: {
             success: { type: 'boolean', example: false },
-            message: { type: 'string' },
-            ...(process.env.NODE_ENV === 'development' && {
-              stack: { type: 'string' },
-              error: { type: 'object' }
-            })
+            message: { type: 'string' }
           }
         },
         Success: {
@@ -208,21 +169,61 @@ const options = {
       }
     },
     security: [
-      { bearerAuth: [] },
-      { cookieAuth: [] }
+      { bearerAuth: [] }
     ]
   },
-  apis: ['./src/modules/*/index.js', './src/app.js']
+  // CRITICAL: Update these paths to match your actual project structure
+  apis: [
+    './modules/*/**/*.js',
+    './modules/auth/index.js',
+    './modules/auth/*.js',
+    './modules/user/index.js', 
+    './modules/user/*.js',
+    './modules/admin/index.js',
+    './modules/admin/*.js',
+    './server.js',
+    './app.js'
+  ]
 };
 
 const specs = swaggerJsdoc(options);
 
 const setupSwagger = (app) => {
+  const env = process.env.NODE_ENV || 'development';
+  
+  // Custom CSS based on environment
+  const customCss = `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .info .title small { 
+      background-color: ${env === 'production' ? '#dc3545' : env === 'development' ? '#ffc107' : '#28a745'};
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-size: 12px;
+    }
+  `;
+
+  // Add environment badge to title
+  specs.info.title = `${specs.info.title} ${
+    env === 'production' ? '🔴 PRODUCTION' : 
+    env === 'development' ? '🟡 DEVELOPMENT' : 
+    '🟢 LOCAL'
+  }`;
+
   // Swagger UI
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
     explorer: true,
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Express Prisma Boilerplate API'
+    customCss,
+    customSiteTitle: `VortexBonus API - ${env.toUpperCase()}`,
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+      tryItOutEnabled: true,
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 1,
+    }
   }));
 
   // JSON endpoint
@@ -230,6 +231,38 @@ const setupSwagger = (app) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(specs);
   });
+
+  // Debug endpoint to see what APIs were found
+  if (env !== 'production') {
+    app.get('/api-docs/debug', (req, res) => {
+      res.json({
+        apis: options.apis,
+        pathsFound: Object.keys(specs.paths || {}),
+        tagsFound: specs.tags || [],
+        totalEndpoints: Object.keys(specs.paths || {}).length
+      });
+    });
+  }
+
+  // Log swagger URL on startup
+  const port = process.env.PORT || 3000;
+  console.log(`📚 Swagger Documentation available at:`);
+  
+  if (env === 'production') {
+    console.log(`   Production: https://api.vortexbonus.com/api-docs`);
+  } else if (process.env.API_URL && process.env.API_URL.includes('api-dev.vortexbonus.com')) {
+    console.log(`   Dev Server: ${process.env.API_URL}/api-docs`);
+  } else {
+    console.log(`   Local: http://localhost:${port}/api-docs`);
+  }
+  
+  // Log number of endpoints found
+  const endpointCount = Object.keys(specs.paths || {}).length;
+  console.log(`📍 Total API endpoints documented: ${endpointCount}`);
+  
+  if (endpointCount === 0) {
+    console.log(`⚠️  WARNING: No API endpoints found! Check your Swagger JSDoc comments.`);
+  }
 };
 
 module.exports = { setupSwagger };

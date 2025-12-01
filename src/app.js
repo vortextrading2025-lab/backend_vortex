@@ -19,36 +19,84 @@ const { setupSwagger } = require('./config/swagger');
 
 const app = express();
 
-// Security middleware - Configure helmet FIRST with proper CSP
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: ["'self'", "http://localhost:3000", "http://localhost:*"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        imgSrc: ["'self'", "data:", "validator.swagger.io"],
-      },
-    },
-  })
-);
+// Get environment
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const API_URL = process.env.API_URL;
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-  credentials: true
-}));
+// Security middleware - Configure helmet with environment-aware CSP
+const helmetConfig = {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: [
+        "'self'",
+        "http://localhost:3000",
+        "http://localhost:*",
+        "https://api-dev.vortexbonus.com",
+        "https://api.vortexbonus.com"
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      imgSrc: ["'self'", "data:", "validator.swagger.io"],
+    },
+  },
+};
+
+// Disable CSP in local development for easier debugging (optional)
+if (NODE_ENV === 'local') {
+  helmetConfig.contentSecurityPolicy = false;
+}
+
+app.use(helmet(helmetConfig));
+
+// CORS configuration - More permissive in development
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+    
+    // In local/development, allow all origins
+    if (NODE_ENV === 'local' || NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed origins
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+};
+
+app.use(cors(corsOptions));
 
 // Basic middleware
 app.use(compression());
-app.use(morgan('combined'));
+
+// Use different morgan formats based on environment
+if (NODE_ENV === 'production') {
+  app.use(morgan('combined')); // Apache combined format for production
+} else {
+  app.use(morgan('dev')); // Colored, concise output for development
+}
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Rate limiting
-app.use(rateLimitMiddleware.generalLimiter);
+// Rate limiting (skip in local development)
+if (NODE_ENV !== 'local') {
+  app.use(rateLimitMiddleware.generalLimiter);
+} else {
+  console.log('⚠️  Rate limiting disabled in local environment');
+}
 
 // Setup Swagger documentation
 setupSwagger(app);
@@ -72,6 +120,9 @@ setupSwagger(app);
  *                 status:
  *                   type: string
  *                   example: "OK"
+ *                 environment:
+ *                   type: string
+ *                   example: "development"
  *                 timestamp:
  *                   type: string
  *                   format: date-time
@@ -82,12 +133,14 @@ setupSwagger(app);
  *                   description: "Server uptime in seconds"
  *             example:
  *               status: "OK"
+ *               environment: "development"
  *               timestamp: "2024-01-15T10:30:00.000Z"
  *               uptime: 3600.123
  */
 app.get('/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
+    status: 'OK',
+    environment: NODE_ENV,
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
@@ -112,8 +165,48 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+  // Environment-specific startup messages
+  console.log('\n' + '='.repeat(60));
+  console.log(`🚀 VortexBonus API Server - ${NODE_ENV.toUpperCase()}`);
+  console.log('='.repeat(60));
+  console.log(`📍 Environment: ${NODE_ENV}`);
+  console.log(`🌐 Port: ${PORT}`);
+  
+  if (NODE_ENV === 'local') {
+    console.log(`🔗 API URL: http://localhost:${PORT}`);
+    console.log(`📚 Swagger: http://localhost:${PORT}/api-docs`);
+  } else if (NODE_ENV === 'development') {
+    console.log(`🔗 API URL: ${API_URL || `http://localhost:${PORT}`}`);
+    console.log(`📚 Swagger: ${API_URL || `http://localhost:${PORT}`}/api-docs`);
+  } else if (NODE_ENV === 'production') {
+    console.log(`🔗 API URL: ${API_URL}`);
+    console.log(`📚 Swagger: ${API_URL}/api-docs`);
+  }
+  
+  console.log(`📊 Log Level: ${process.env.LOG_LEVEL || 'info'}`);
+  console.log(`⏱️  Rate Limiting: ${NODE_ENV !== 'local' ? 'Enabled' : 'Disabled'}`);
+  console.log(`🔒 CORS: ${NODE_ENV === 'production' ? 'Strict' : 'Permissive'}`);
+  console.log('='.repeat(60) + '\n');
+  
+  // Health check URLs
+  console.log('✅ Health Check Endpoints:');
+  if (NODE_ENV === 'local') {
+    console.log(`   http://localhost:${PORT}/health`);
+  } else {
+    console.log(`   ${API_URL}/health`);
+  }
+  console.log('\n' + '='.repeat(60) + '\n');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('\nSIGINT signal received: closing HTTP server');
+  process.exit(0);
 });
 
 module.exports = app;
