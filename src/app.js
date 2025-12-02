@@ -1,5 +1,22 @@
 require('express-async-errors');
-require('dotenv').config();
+
+// Load environment variables based on NODE_ENV
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const path = require('path');
+const fs = require('fs');
+
+// Try to load environment-specific .env file
+const envFile = `.env.${NODE_ENV}`;
+const envPath = path.resolve(process.cwd(), envFile);
+
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+  console.log(`📄 Loaded environment file: ${envFile}`);
+} else {
+  // Fallback to default .env file
+  require('dotenv').config();
+  console.log(`📄 Loaded default .env file`);
+}
 
 const express = require('express');
 const cors = require('cors');
@@ -20,8 +37,7 @@ const { setupSwagger } = require('./config/swagger');
 
 const app = express();
 
-// Get environment
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// Get environment (NODE_ENV already set above)
 const API_URL = process.env.API_URL;
 
 // Security middleware - Configure helmet with environment-aware CSP
@@ -93,7 +109,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Serve uploaded files statically
-const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Rate limiting (skip in local development)
@@ -172,7 +187,8 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+// Store server instance for error handling and graceful shutdown
+const server = app.listen(PORT, () => {
   // Environment-specific startup messages
   console.log('\n' + '='.repeat(60));
   console.log(`🚀 VortexBonus API Server - ${NODE_ENV.toUpperCase()}`);
@@ -206,15 +222,71 @@ app.listen(PORT, () => {
   console.log('\n' + '='.repeat(60) + '\n');
 });
 
+// Handle server errors
+server.on('error', (error) => {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  const bind = typeof PORT === 'string' ? `Pipe ${PORT}` : `Port ${PORT}`;
+
+  switch (error.code) {
+    case 'EACCES':
+      console.error(`❌ ${bind} requires elevated privileges`);
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(`❌ ${bind} is already in use`);
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+});
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  process.exit(0);
+  console.log('\n⚠️  SIGTERM signal received: closing HTTP server gracefully...');
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+  
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('❌ Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
 });
 
 process.on('SIGINT', () => {
-  console.log('\nSIGINT signal received: closing HTTP server');
-  process.exit(0);
+  console.log('\n⚠️  SIGINT signal received: closing HTTP server gracefully...');
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+  
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('❌ Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    process.exit(1);
+  });
 });
 
 module.exports = app;
