@@ -34,9 +34,69 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8)
 });
 
-// @route   GET /api/users/profile
-// @desc    Get user profile
-// @access  Private
+/**
+ * @swagger
+ * /api/users/profile:
+ *   get:
+ *     summary: Get user profile
+ *     description: Get detailed user profile with permissions and role-specific profiles
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User profile retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                     lastName:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     avatar:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     emailVerified:
+ *                       type: boolean
+ *                     phoneVerified:
+ *                       type: boolean
+ *                     vendorProfile:
+ *                       type: object
+ *                       nullable: true
+ *                     mentorProfile:
+ *                       type: object
+ *                       nullable: true
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/profile', authenticate, async (req, res) => {
   try {
     const user = await database.getClient().user.findUnique({
@@ -103,21 +163,7 @@ router.get('/profile', authenticate, async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               firstName:
- *                 type: string
- *                 example: "John"
- *               lastName:
- *                 type: string
- *                 example: "Doe"
- *               phone:
- *                 type: string
- *                 example: "+1234567890"
- *               avatar:
- *                 type: string
- *                 format: uri
- *                 example: "https://example.com/avatar.jpg"
+ *             $ref: '#/components/schemas/UpdateProfileRequest'
  *           example:
  *             firstName: "John"
  *             lastName: "Doe"
@@ -206,9 +252,44 @@ router.put('/profile', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/users/change-password
-// @desc    Change user password
-// @access  Private
+/**
+ * @swagger
+ * /api/users/change-password:
+ *   post:
+ *     summary: Change user password
+ *     description: Change the authenticated user's password
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChangePasswordRequest'
+ *           example:
+ *             currentPassword: "OldPassword123!"
+ *             newPassword: "NewPassword123!"
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Validation error or incorrect current password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/change-password', authenticate, async (req, res) => {
   try {
     const validatedData = changePasswordSchema.parse(req.body);
@@ -279,9 +360,79 @@ router.post('/change-password', authenticate, async (req, res) => {
   }
 });
 
-// @route   GET /api/users
-// @desc    Get all users (Admin only)
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Get all users (Admin only)
+ *     description: Get paginated list of all users with filtering options
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [USER, VENDOR, MENTOR, ADMIN]
+ *         description: Filter by role
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVE, INACTIVE, SUSPENDED, PENDING_VERIFICATION]
+ *         description: Filter by status
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by email, first name, or last name
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/User'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         pages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const { page = 1, limit = 10, role, status, search } = req.query;
@@ -340,9 +491,41 @@ router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
   }
 });
 
-// @route   GET /api/users/:id
-// @desc    Get user by ID (Admin only)
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Get user by ID (Admin only)
+ *     description: Get detailed user information by user ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: User not found
+ */
 router.get('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const user = await database.getClient().user.findUnique({
@@ -377,9 +560,50 @@ router.get('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   }
 });
 
-// @route   PUT /api/users/:id/status
-// @desc    Update user status (Admin only)
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/users/{id}/status:
+ *   put:
+ *     summary: Update user status (Admin only)
+ *     description: Update a user's status (ACTIVE, INACTIVE, SUSPENDED, PENDING_VERIFICATION)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, INACTIVE, SUSPENDED, PENDING_VERIFICATION]
+ *                 example: ACTIVE
+ *     responses:
+ *       200:
+ *         description: User status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Invalid status
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: User not found
+ */
 router.put('/:id/status', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const { status } = req.body;
@@ -411,6 +635,123 @@ router.put('/:id/status', authenticate, authorize('ADMIN'), async (req, res) => 
     res.json({
       success: true,
       message: 'User status updated successfully',
+      data: user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/{id}/role:
+ *   put:
+ *     summary: Update user role (Admin only)
+ *     description: Update a user's role (USER, VENDOR, MENTOR, ADMIN)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role]
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [USER, VENDOR, MENTOR, ADMIN]
+ *                 example: VENDOR
+ *     responses:
+ *       200:
+ *         description: User role updated successfully
+ *       400:
+ *         description: Invalid role
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: User not found
+ */
+router.put('/:id/role', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const { ipAddress, userAgent } = getClientInfo(req);
+
+    if (!['USER', 'VENDOR', 'MENTOR', 'ADMIN'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role'
+      });
+    }
+
+    // Get current user to check if they have vendor/mentor profile
+    const currentUser = await database.getClient().user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vendorProfile: true,
+        mentorProfile: true
+      }
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update user role
+    const user = await database.getClient().user.update({
+      where: { id: req.params.id },
+      data: { role }
+    });
+
+    // Create or remove role-specific profiles
+    if (role === 'VENDOR' && !currentUser.vendorProfile) {
+      await database.getClient().vendorProfile.create({
+        data: {
+          userId: user.id,
+          businessName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Business',
+          businessType: 'General'
+        }
+      });
+    } else if (role === 'MENTOR' && !currentUser.mentorProfile) {
+      await database.getClient().mentorProfile.create({
+        data: {
+          userId: user.id,
+          expertise: [],
+          experience: 0
+        }
+      });
+    }
+
+    // Log the action
+    await AuditLogger.logUserAction(
+      req.user.id,
+      'ASSIGN_ROLE',
+      'User',
+      req.params.id,
+      { role, previousRole: currentUser.role },
+      ipAddress,
+      userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'User role updated successfully',
       data: user
     });
   } catch (error) {

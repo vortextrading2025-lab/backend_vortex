@@ -21,10 +21,14 @@ class RedisClient {
 
   async get(key) {
     try {
-      if (!this.redis) return null;
+      if (!this.redis) {
+        // Redis not configured - return null silently (fallback to database)
+        return null;
+      }
       return await this.redis.get(key);
     } catch (error) {
-      console.error('Redis GET error:', error);
+      // Log warning instead of error since we have database fallback
+      console.warn('Redis GET error (falling back to database):', error.message);
       return null;
     }
   }
@@ -99,9 +103,23 @@ class RedisClient {
   }
 
   async getSession(sessionId) {
-    const key = `session:${sessionId}`;
-    const data = await this.get(key);
-    return data ? JSON.parse(data) : null;
+    try {
+      const key = `session:${sessionId}`;
+      const data = await this.get(key);
+      if (!data) return null;
+      
+      // Handle case where data might already be an object (from Upstash)
+      if (typeof data === 'object') {
+        return data;
+      }
+      
+      // Parse JSON string
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Redis getSession error:', error);
+      // Return null instead of throwing - let caller handle fallback
+      return null;
+    }
   }
 
   async deleteSession(sessionId) {

@@ -4,6 +4,7 @@ const AuthService = require('./authService');
 const { authenticate, authorize } = require('../../middleware/auth');
 const { authLimiter, passwordResetLimiter } = require('../../middleware/rateLimit');
 const AuditLogger = require('../logging/auditLogger');
+const { uploadRegistrationFiles } = require('../../config/upload');
 const { 
   successResponse, 
   errorResponse, 
@@ -21,7 +22,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  role: z.enum(['USER', 'VENDOR', 'MENTOR']).default('USER')
+  role: z.enum(['USER', 'VENDOR', 'MENTOR']).default('USER') // Default to USER for signup form
 });
 
 const loginSchema = z.object({
@@ -123,12 +124,26 @@ const getClientInfo = (req) => {
  *               success: false
  *               message: "Too many registration attempts, please try again later"
  */
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register', authLimiter, uploadRegistrationFiles, async (req, res) => {
   try {
     const { ipAddress, userAgent, deviceInfo } = getClientInfo(req);
     
-    const result = await AuthService.register(req.body, ipAddress, userAgent);
-    console.log("result ==>",result)
+    // Handle multer errors
+    if (req.fileValidationError) {
+      return errorResponse(res, 400, req.fileValidationError);
+    }
+    
+    const result = await AuthService.register(req.body, req.files, ipAddress, userAgent);
+    console.log("result ==>", result);
+    
+    // Set refresh token as httpOnly cookie
+    res.cookie('refreshToken', result.data.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    
     return successResponse(
       res, 
       201, 
@@ -136,11 +151,20 @@ router.post('/register', authLimiter, async (req, res) => {
       {
         user: result.data.user,
         accessToken: result.data.accessToken,
-        refreshToken: result.data.refreshToken,
         sessionId: result.data.sessionId
       }
     );
   } catch (error) {
+    // Clean up uploaded files on error
+    if (req.files) {
+      const fs = require('fs');
+      Object.values(req.files).flat().forEach(file => {
+        if (file.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+    
     if (error instanceof z.ZodError) {
       return validationErrorResponse(res, error.errors);
     }
@@ -255,9 +279,52 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/refresh
-// @desc    Refresh access token
-// @access  Public
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     description: Get a new access token using a valid refresh token
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RefreshTokenRequest'
+ *           example:
+ *             refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token refreshed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *       401:
+ *         description: Invalid or expired refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Invalid or expired refresh token"
+ */
 router.post('/refresh', async (req, res) => {
   try {
     const refreshToken = req.body.refreshToken || req.cookies.refreshToken;
@@ -279,9 +346,35 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/logout
-// @desc    Logout user
-// @access  Private
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     description: Logout from current session and invalidate tokens
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *             example:
+ *               success: true
+ *               message: "Logout successful"
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Access token required"
+ */
 router.post('/logout', authenticate, async (req, res) => {
   try {
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -307,9 +400,32 @@ router.post('/logout', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/logout-all
-// @desc    Logout from all sessions
-// @access  Private
+/**
+ * @swagger
+ * /api/auth/logout-all:
+ *   post:
+ *     summary: Logout from all sessions
+ *     description: Logout from all active sessions and invalidate all tokens
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logged out from all sessions successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *             example:
+ *               success: true
+ *               message: "Logged out from all sessions successfully"
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/logout-all', authenticate, async (req, res) => {
   try {
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -353,9 +469,12 @@ router.post('/logout-all', authenticate, async (req, res) => {
  *                   type: boolean
  *                   example: true
  *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/SessionInfo'
+ *                   type: object
+ *                   properties:
+ *                     sessions:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/SessionInfo'
  *             example:
  *               success: true
  *               data:
@@ -403,9 +522,42 @@ router.get('/sessions', authenticate, async (req, res) => {
   }
 });
 
-// @route   DELETE /api/auth/sessions/:sessionId
-// @desc    Revoke specific session
-// @access  Private
+/**
+ * @swagger
+ * /api/auth/sessions/{sessionId}:
+ *   delete:
+ *     summary: Revoke specific session
+ *     description: Revoke a specific session by session ID
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Session ID to revoke
+ *     responses:
+ *       200:
+ *         description: Session revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.delete('/sessions/:sessionId', authenticate, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -427,9 +579,38 @@ router.delete('/sessions/:sessionId', authenticate, async (req, res) => {
   }
 });
 
-// @route   GET /api/auth/me
-// @desc    Get current user
-// @access  Private
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user profile
+ *     description: Get the authenticated user's profile information
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User profile retrieved successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/me', authenticate, async (req, res) => {
   try {
     const user = await req.user;
@@ -453,6 +634,68 @@ router.get('/me', authenticate, async (req, res) => {
     );
   } catch (error) {
     return serverErrorResponse(res, 'Failed to retrieve user profile', error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   get:
+ *     summary: Verify email address
+ *     description: Verify user email using verification token from email link
+ *     tags: [Authentication]
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email verification token
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Email verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *       400:
+ *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return errorResponse(res, 400, 'Verification token is required');
+    }
+    
+    const result = await AuthService.verifyEmail(token);
+    
+    return successResponse(
+      res,
+      200,
+      result.message,
+      { user: result.user }
+    );
+  } catch (error) {
+    return errorResponse(res, 400, error.message);
   }
 });
 

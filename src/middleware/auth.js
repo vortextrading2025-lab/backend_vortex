@@ -30,12 +30,82 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const validatedToken = tokenSchema.parse(decoded);
 
-    // Check if session exists in Redis
-    const session = await redisClient.getSession(validatedToken.sessionId);
+    // Check if session exists - try Redis first, fallback to database
+    let session = null;
+    let useDatabaseFallback = false;
+    
+    try {
+      session = await redisClient.getSession(validatedToken.sessionId);
+      
+      // If Redis is not configured or session not in Redis, try database
+      if (!session) {
+        useDatabaseFallback = true;
+        const dbSession = await database.getClient().session.findUnique({
+          where: { 
+            sessionId: validatedToken.sessionId,
+            status: 'ACTIVE'
+          }
+        });
+        
+        if (dbSession && dbSession.expiresAt > new Date()) {
+          // Convert database session to Redis session format
+          session = {
+            sessionId: dbSession.sessionId,
+            userId: dbSession.userId,
+            deviceInfo: dbSession.deviceInfo ? JSON.parse(dbSession.deviceInfo) : null,
+            ipAddress: dbSession.ipAddress,
+            userAgent: dbSession.userAgent,
+            createdAt: dbSession.createdAt.toISOString(),
+            lastUsedAt: dbSession.lastUsedAt?.toISOString() || dbSession.createdAt.toISOString()
+          };
+          
+          // Try to sync back to Redis if available (non-blocking)
+          try {
+            await redisClient.setSession(validatedToken.sessionId, session, 7 * 24 * 60 * 60);
+          } catch (syncError) {
+            logger.debug('Failed to sync session to Redis (non-critical):', syncError.message);
+          }
+        }
+      }
+    } catch (redisError) {
+      // Redis error - fallback to database
+      logger.warn('Redis session retrieval error, falling back to database:', redisError.message);
+      useDatabaseFallback = true;
+      
+      try {
+        const dbSession = await database.getClient().session.findUnique({
+          where: { 
+            sessionId: validatedToken.sessionId,
+            status: 'ACTIVE'
+          }
+        });
+        
+        if (dbSession && dbSession.expiresAt > new Date()) {
+          session = {
+            sessionId: dbSession.sessionId,
+            userId: dbSession.userId,
+            deviceInfo: dbSession.deviceInfo ? JSON.parse(dbSession.deviceInfo) : null,
+            ipAddress: dbSession.ipAddress,
+            userAgent: dbSession.userAgent,
+            createdAt: dbSession.createdAt.toISOString(),
+            lastUsedAt: dbSession.lastUsedAt?.toISOString() || dbSession.createdAt.toISOString()
+          };
+        }
+      } catch (dbError) {
+        logger.error('Database session retrieval error:', dbError);
+        return res.status(500).json({
+          success: false,
+          message: 'Session service unavailable. Please try again later.'
+        });
+      }
+    }
+    
+    // Validate session
     if (!session || session.userId !== validatedToken.userId) {
+      logger.warn(`Session not found or mismatch for sessionId: ${validatedToken.sessionId}, userId: ${validatedToken.userId}`);
       return res.status(401).json({
         success: false,
-        message: 'Invalid session'
+        message: 'Invalid session. Please log in again.'
       });
     }
 
@@ -53,24 +123,52 @@ const authenticate = async (req, res, next) => {
       }
     });
 
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'User not found or inactive'
+        message: 'User not found'
       });
     }
 
-    // Update session last used
-    await redisClient.setSession(validatedToken.sessionId, {
+    // Only block SUSPENDED users - allow PENDING_VERIFICATION and INACTIVE
+    // Rate limiting already handles abuse prevention
+    if (user.status === 'SUSPENDED') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been suspended. Please contact support for assistance.'
+      });
+    }
+
+    // Update session last used (non-blocking - don't fail auth if this fails)
+    const updatedSession = {
       ...session,
       lastUsedAt: new Date().toISOString()
-    });
+    };
+    
+    // Try to update in Redis first
+    try {
+      await redisClient.setSession(validatedToken.sessionId, updatedSession, 7 * 24 * 60 * 60);
+    } catch (redisError) {
+      logger.debug('Failed to update session in Redis (non-critical):', redisError.message);
+    }
+    
+    // Always update in database (fallback and primary source)
+    try {
+      await database.getClient().session.update({
+        where: { sessionId: validatedToken.sessionId },
+        data: { lastUsedAt: new Date() }
+      });
+    } catch (dbError) {
+      logger.warn('Failed to update session last used in database:', dbError.message);
+      // Continue with authentication even if session update fails
+    }
 
     req.user = user;
     req.sessionId = validatedToken.sessionId;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
+      logger.warn('JWT verification failed:', error.message);
       return res.status(401).json({
         success: false,
         message: 'Invalid token'
@@ -78,16 +176,36 @@ const authenticate = async (req, res, next) => {
     }
     
     if (error.name === 'TokenExpiredError') {
+      logger.warn('Token expired:', error.message);
       return res.status(401).json({
         success: false,
         message: 'Token expired'
       });
     }
 
-    logger.error('Authentication error:', error);
-    res.status(500).json({
+    // Handle Zod validation errors
+    if (error.name === 'ZodError') {
+      logger.warn('Token validation failed:', error.errors);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token format',
+        details: error.errors
+      });
+    }
+
+    logger.error('Authentication error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Return more specific error message
+    const errorMessage = error.message || 'Authentication failed';
+    const statusCode = error.statusCode || 500;
+    
+    res.status(statusCode).json({
       success: false,
-      message: 'Authentication failed'
+      message: errorMessage
     });
   }
 };
@@ -169,7 +287,8 @@ const optionalAuth = async (req, res, next) => {
           }
         });
 
-        if (user && user.status === 'ACTIVE') {
+        // Allow non-SUSPENDED users for optional auth
+        if (user && user.status !== 'SUSPENDED') {
           req.user = user;
           req.sessionId = validatedToken.sessionId;
         }
