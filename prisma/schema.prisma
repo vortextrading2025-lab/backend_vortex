@@ -55,93 +55,115 @@ enum ActionType {
   SYSTEM_EVENT
 }
 
+enum ContractStage {
+  STAGE_1
+  STAGE_2
+  STAGE_3
+  COMPLETED
+}
+
+enum ContractStatus {
+  ACTIVE
+  FULFILLED
+  INACTIVE
+}
+
 model User {
-  id                String      @id @default(cuid())
-  email             String      @unique
-  username          String?     @unique
-  password          String
-  firstName         String?
-  lastName          String?
-  phone             String?
-  avatar            String?
-  role              UserRole    @default(USER)
-  status            UserStatus  @default(PENDING_VERIFICATION)
-  emailVerified     Boolean     @default(false)
-  phoneVerified     Boolean     @default(false)
-  lastLoginAt       DateTime?
-  lastLoginIp       String?
+  id                 String     @id @default(cuid())
+  email              String     @unique
+  username           String?    @unique
+  password           String
+  firstName          String?
+  lastName           String?
+  phone              String?
+  avatar             String?
+  role               UserRole   @default(USER)
+  status             UserStatus @default(PENDING_VERIFICATION)
+  emailVerified      Boolean    @default(false)
+  phoneVerified      Boolean    @default(false)
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
   lastLoginUserAgent String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   // Relations
-  sessions          Session[]
-  auditLogs         AuditLog[]
-  permissions       UserPermission[]
-  refreshTokens     RefreshToken[]
-  vendorProfile     VendorProfile?
-  mentorProfile     MentorProfile?
+  sessions       Session[]
+  auditLogs      AuditLog[]
+  permissions    UserPermission[]
+  refreshTokens  RefreshToken[]
+  vendorProfile  VendorProfile?
+  mentorProfile  MentorProfile?
+  ownedContracts Contract[]       @relation("OwnedContracts")
+  hostContracts  Contract[]       @relation("HostContracts")
+  payouts        Payout[]
+  wallet         Wallet?
+  inviteLinks    InviteLink[]     @relation("InviteLinks")
+  invitedBy      InviteLink?      @relation("InvitedUsers")
 
   @@map("users")
 }
 
 model VendorProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  businessName String
-  businessType String
-  description String?
-  website     String?
-  address     String?
-  city        String?
-  state       String?
-  country     String?
-  zipCode     String?
-  taxId       String?
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName  String
+  businessType  String
+  description   String?
+  website       String?
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  zipCode       String?
+  taxId         String?
+  taxIdProof    String? // File path for tax ID proof
+  cinNumber     String? // CIN (Corporate Identification Number)
+  cinProof      String? // File path for CIN proof
   licenseNumber String?
-  isVerified  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("vendor_profiles")
 }
 
 model MentorProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expertise   String[]
-  experience  Int      // years of experience
-  bio         String?
-  hourlyRate  Float?
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expertise    String[]
+  experience   Int // years of experience
+  bio          String?
+  hourlyRate   Float?
   availability String?
-  isVerified  Boolean  @default(false)
-  rating      Float?
-  totalReviews Int     @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isVerified   Boolean  @default(false)
+  rating       Float?
+  totalReviews Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("mentor_profiles")
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String       @id @default(cuid())
+  name        String       @unique
   description String?
   permissions Permission[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@map("roles")
 }
 
 model Permission {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String           @id @default(cuid())
+  name        String           @unique
   description String?
-  resource    String   // e.g., 'users', 'products', 'orders'
-  action      String   // e.g., 'create', 'read', 'update', 'delete'
+  resource    String // e.g., 'users', 'products', 'orders'
+  action      String // e.g., 'create', 'read', 'update', 'delete'
   roles       Role[]
   users       UserPermission[]
 
@@ -155,66 +177,66 @@ model UserPermission {
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
   grantedAt    DateTime   @default(now())
-  grantedBy    String?    // User ID who granted this permission
+  grantedBy    String? // User ID who granted this permission
 
   @@unique([userId, permissionId])
   @@map("user_permissions")
 }
 
 model Session {
-  id          String        @id @default(cuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId   String        @unique
-  refreshToken String       @unique
-  deviceInfo  String?       // JSON string with device info
-  ipAddress   String?
-  userAgent   String?
-  location    String?       // City, Country
-  status      SessionStatus @default(ACTIVE)
-  expiresAt   DateTime
-  lastUsedAt  DateTime      @default(now())
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String        @unique
+  refreshToken String        @unique
+  deviceInfo   String? // JSON string with device info
+  ipAddress    String?
+  userAgent    String?
+  location     String? // City, Country
+  status       SessionStatus @default(ACTIVE)
+  expiresAt    DateTime
+  lastUsedAt   DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@map("sessions")
 }
 
 model RefreshToken {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token       String    @unique
-  expiresAt   DateTime
-  isRevoked   Boolean   @default(false)
-  revokedAt   DateTime?
-  createdAt   DateTime  @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  isRevoked Boolean   @default(false)
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   @@map("refresh_tokens")
 }
 
 model AuditLog {
-  id          String     @id @default(cuid())
-  userId      String?
-  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action      ActionType
-  resource    String?    // e.g., 'User', 'Product', 'Order'
-  resourceId  String?    // ID of the affected resource
-  details     Json?      // Additional details about the action
-  ipAddress   String?
-  userAgent   String?
-  level       LogLevel   @default(INFO)
-  message     String
-  metadata    Json?      // Additional metadata
-  createdAt   DateTime   @default(now())
+  id         String     @id @default(cuid())
+  userId     String?
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     ActionType
+  resource   String? // e.g., 'User', 'Product', 'Order'
+  resourceId String? // ID of the affected resource
+  details    Json? // Additional details about the action
+  ipAddress  String?
+  userAgent  String?
+  level      LogLevel   @default(INFO)
+  message    String
+  metadata   Json? // Additional metadata
+  createdAt  DateTime   @default(now())
 
   @@map("audit_logs")
 }
 
 model RateLimit {
   id          String   @id @default(cuid())
-  identifier  String   // IP address, user ID, or session ID
-  endpoint    String   // API endpoint
+  identifier  String // IP address, user ID, or session ID
+  endpoint    String // API endpoint
   count       Int      @default(1)
   windowStart DateTime @default(now())
   expiresAt   DateTime
@@ -222,4 +244,142 @@ model RateLimit {
 
   @@unique([identifier, endpoint, windowStart])
   @@map("rate_limits")
+}
+
+model Contract {
+  id             String  @id @default(cuid())
+  contractNumber Int // 101, 102, 103, etc.
+  ownerId        String
+  owner          User    @relation("OwnedContracts", fields: [ownerId], references: [id], onDelete: Cascade)
+  hostId         String? // User who sponsored the owner
+  host           User?   @relation("HostContracts", fields: [hostId], references: [id], onDelete: SetNull)
+
+  // Tree structure (Binary tree - max 2 children)
+  parentId String?
+  parent   Contract?  @relation("ContractTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Contract[] @relation("ContractTree")
+
+  // Stage and status
+  stage  ContractStage  @default(STAGE_1)
+  status ContractStatus @default(ACTIVE)
+
+  // Placement position (Binary tree: position 0 = left, position 1 = right)
+  level           Int // Level in tree (0 = root, 1 = first level, etc.)
+  position        Int // Position within level (0 = left, 1 = right)
+  positionInLevel Int // Position within level (bottom to top)
+
+  // Active unit management (only ONE per user can be active)
+  isActiveUnit    Boolean   @default(false) // Only ONE contract per user has this = true
+  isActive        Boolean   @default(true)
+  fulfilledAt     DateTime?
+  movedToStage2At DateTime?
+  movedToStage3At DateTime?
+
+  // Payment and payouts
+  purchasePrice Float?    @default(0) // Price paid when contract was created
+  downPayment   Float?    @default(0) // Initial payment required to create contract
+  payoutAmount  Float?    @default(0)
+  paidOut       Boolean   @default(false)
+  paidOutAt     DateTime?
+
+  // Relations
+  payouts Payout[]
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, contractNumber])
+  @@index([parentId])
+  @@index([ownerId])
+  @@index([hostId])
+  @@index([stage, status])
+  @@index([isActive, stage])
+  @@index([ownerId, isActiveUnit]) // For finding active unit per user
+  @@map("contracts")
+}
+
+model Payout {
+  id          String        @id @default(cuid())
+  contractId  String
+  contract    Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Float
+  stage       ContractStage
+  status      String        @default("PENDING") // PENDING, PROCESSED, FAILED
+  processedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([status])
+  @@map("payouts")
+}
+
+model Wallet {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Float         @default(0)
+  totalEarned    Float         @default(0)
+  totalWithdrawn Float         @default(0)
+  transactions   Transaction[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId        String
+  type          String // DEPOSIT, WITHDRAWAL, CONTRACT_PURCHASE
+  amount        Float
+  status        String   @default("COMPLETED") // COMPLETED, PENDING, FAILED
+  referenceId   String? // contractId or payoutId
+  referenceType String? // CONTRACT, PAYOUT
+  description   String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([type])
+  @@index([status])
+  @@map("transactions")
+}
+
+model ContractPricing {
+  id        String        @id @default(cuid())
+  stage     ContractStage @unique
+  price     Float // Price for 4 units
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("contract_pricing")
+}
+
+model InviteLink {
+  id            String    @id @default(cuid())
+  inviterId     String // User who created the invite
+  inviter       User      @relation("InviteLinks", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteCode    String    @unique // Unique invite code (e.g., "ABC123")
+  inviteUrl     String    @unique // Full invite URL
+  isActive      Boolean   @default(true)
+  maxUses       Int? // Maximum number of uses (null = unlimited)
+  currentUses   Int       @default(0) // Current number of uses
+  expiresAt     DateTime? // Expiration date (null = never expires)
+  invitedUserId String?   @unique // User who joined via this invite
+  invitedUser   User?     @relation("InvitedUsers", fields: [invitedUserId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastUsedAt    DateTime?
+
+  @@index([inviterId])
+  @@index([inviteCode])
+  @@index([isActive])
+  @@map("invite_links")
 }

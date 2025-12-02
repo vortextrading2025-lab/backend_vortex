@@ -77,7 +77,7 @@ const options = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Enter your JWT token in the format: your-token-here'
+          description: 'Enter your JWT token in the format: Bearer your-token-here'
         },
         cookieAuth: {
           type: 'apiKey',
@@ -136,6 +136,12 @@ const options = {
             password: { type: 'string', example: '123456' }
           }
         },
+        RefreshTokenRequest: {
+          type: 'object',
+          properties: {
+            refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }
+          }
+        },
         AuthResponse: {
           type: 'object',
           properties: {
@@ -149,6 +155,67 @@ const options = {
                 sessionId: { type: 'string', example: 'sess_1234567890abcdef' }
               }
             }
+          }
+        },
+        SessionInfo: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', example: 'sess_1234567890abcdef' },
+            deviceInfo: {
+              type: 'object',
+              properties: {
+                userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                ip: { type: 'string', example: '192.168.1.1' },
+                timestamp: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' }
+              }
+            },
+            ipAddress: { type: 'string', example: '192.168.1.1' },
+            userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            location: { type: 'string', example: 'New York, US' },
+            lastUsedAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' },
+            createdAt: { type: 'string', format: 'date-time', example: '2024-01-15T09:00:00Z' }
+          }
+        },
+        ActiveSessionsResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: true },
+            message: { type: 'string', example: 'Active sessions retrieved successfully' },
+            data: {
+              type: 'object',
+              properties: {
+                sessions: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/SessionInfo' }
+                },
+                totalSessions: { type: 'number', example: 3 },
+                currentSession: { type: 'string', example: 'sess_1234567890abcdef' }
+              }
+            }
+          }
+        },
+        AvatarUpdateRequest: {
+          type: 'object',
+          required: ['avatar'],
+          properties: {
+            avatar: { type: 'string', format: 'uri', example: 'https://example.com/new-avatar.jpg' }
+          }
+        },
+        ChangePasswordRequest: {
+          type: 'object',
+          required: ['currentPassword', 'newPassword'],
+          properties: {
+            currentPassword: { type: 'string', example: 'OldPassword123!' },
+            newPassword: { type: 'string', minLength: 8, example: 'NewPassword123!' }
+          }
+        },
+        UpdateProfileRequest: {
+          type: 'object',
+          properties: {
+            firstName: { type: 'string', example: 'John' },
+            lastName: { type: 'string', example: 'Doe' },
+            phone: { type: 'string', example: '+1234567890' },
+            avatar: { type: 'string', format: 'uri', example: 'https://example.com/avatar.jpg' }
           }
         },
         Error: {
@@ -174,15 +241,8 @@ const options = {
   },
   // CRITICAL: Update these paths to match your actual project structure
   apis: [
-    './modules/*/**/*.js',
-    './modules/auth/index.js',
-    './modules/auth/*.js',
-    './modules/user/index.js', 
-    './modules/user/*.js',
-    './modules/admin/index.js',
-    './modules/admin/*.js',
-    './server.js',
-    './app.js'
+    './src/modules/**/*.js',
+    './src/app.js'
   ]
 };
 

@@ -12,6 +12,7 @@ const cookieParser = require('cookie-parser');
 const authModule = require('./modules/auth');
 const userModule = require('./modules/user');
 const adminModule = require('./modules/admin');
+const contractModule = require('./modules/contract');
 const loggingModule = require('./modules/logging');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimitMiddleware = require('./middleware/rateLimit');
@@ -91,6 +92,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+// Serve uploaded files statically
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Rate limiting (skip in local development)
 if (NODE_ENV !== 'local') {
   app.use(rateLimitMiddleware.generalLimiter);
@@ -150,6 +155,9 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authModule.router);
 app.use('/api/users', userModule.router);
 app.use('/api/admin', adminModule.router);
+app.use('/api/admin/pricing', require('./modules/admin/pricing').router);
+app.use('/api/contracts', contractModule.router);
+app.use('/api/wallet', require('./modules/wallet').router);
 
 // 404 handler
 app.use('*', (req, res) => {

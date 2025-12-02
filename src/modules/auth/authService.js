@@ -14,7 +14,17 @@ const registerSchema = z.object({
   password: z.string().min(8),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  role: z.enum(['USER', 'VENDOR', 'MENTOR']).default('USER')
+  username: z.string().optional(),
+  phone: z.string().optional(),
+  addressLine1: z.string().optional(),
+  addressLine2: z.string().optional(),
+  pinCode: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  taxId: z.string().optional(),
+  cinNumber: z.string().optional(),
+  role: z.enum(['USER', 'VENDOR', 'MENTOR']).default('USER'), // Default to USER for signup form
+  inviteCode: z.string().optional() // Optional invite code
 });
 
 const loginSchema = z.object({
@@ -77,7 +87,7 @@ class AuthService {
   }
 
   // Register new user
-  static async register(userData, ipAddress, userAgent) {
+  static async register(userData, files, ipAddress, userAgent) {
     try {
       const validatedData = registerSchema.parse(userData);
 
@@ -90,8 +100,36 @@ class AuthService {
         throw new Error('User already exists with this email');
       }
 
+      // Check if username already exists (if provided)
+      if (validatedData.username) {
+        const existingUsername = await database.getClient().user.findUnique({
+          where: { username: validatedData.username }
+        });
+        if (existingUsername) {
+          throw new Error('Username already taken');
+        }
+      }
+
       // Hash password
       const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+
+      // Prepare file paths
+      const taxIdProofPath = files?.taxIdProof?.[0]?.path || null;
+      const cinProofPath = files?.cinProof?.[0]?.path || null;
+
+      // Handle invite code if provided
+      let inviteLink = null;
+      if (validatedData.inviteCode) {
+        const InviteService = require('../contract/inviteService');
+        try {
+          inviteLink = await InviteService.getInviteLinkByCode(validatedData.inviteCode);
+          if (!inviteLink) {
+            throw new Error('Invalid invite code');
+          }
+        } catch (error) {
+          throw new Error(`Invalid invite code: ${error.message}`);
+        }
+      }
 
       // Create user
       const user = await database.getClient().user.create({
@@ -100,11 +138,20 @@ class AuthService {
           password: hashedPassword,
           firstName: validatedData.firstName,
           lastName: validatedData.lastName,
+          username: validatedData.username || null,
+          phone: validatedData.phone || null,
           role: validatedData.role,
           status: 'PENDING_VERIFICATION'
         }
       });
       console.log("user ==>", user);
+
+      // Link user to invite if provided
+      if (inviteLink) {
+        const InviteService = require('../contract/inviteService');
+        await InviteService.useInviteLink(validatedData.inviteCode, user.id);
+        logger.info(`User ${user.id} registered via invite code ${validatedData.inviteCode} from user ${inviteLink.inviterId}`);
+      }
 
       // Create profile based on role
       if (validatedData.role === 'VENDOR') {
@@ -112,7 +159,16 @@ class AuthService {
           data: {
             userId: user.id,
             businessName: `${validatedData.firstName} ${validatedData.lastName}`,
-            businessType: 'General'
+            businessType: 'General',
+            address: validatedData.addressLine1 || null,
+            city: validatedData.addressLine2 || null, // Using addressLine2 as city
+            state: validatedData.state || null,
+            country: validatedData.country || null,
+            zipCode: validatedData.pinCode || null,
+            taxId: validatedData.taxId || null,
+            taxIdProof: taxIdProofPath ? taxIdProofPath.replace(/\\/g, '/') : null, // Normalize path separators
+            cinNumber: validatedData.cinNumber || null,
+            cinProof: cinProofPath ? cinProofPath.replace(/\\/g, '/') : null // Normalize path separators
           }
         });
       } else if (validatedData.role === 'MENTOR') {
@@ -137,30 +193,100 @@ class AuthService {
 
       logger.info(`New user registered: ${user.email} with role: ${user.role}`);
 
-      // Send verification email (best-effort)
+      // Generate sessionId and tokens (auto-login after registration)
+      const sessionId = uuidv4();
+      const { accessToken, refreshToken } = this.generateTokens(user.id, sessionId, user.role);
+
+      // Create session data for Redis
+      const sessionData = {
+        sessionId,
+        userId: user.id,
+        deviceInfo: {
+          userAgent,
+          ip: ipAddress,
+          timestamp: new Date().toISOString()
+        },
+        ipAddress,
+        userAgent,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString()
+      };
+
+      // Store in Redis
+      await redisClient.setSession(sessionId, sessionData, 7 * 24 * 60 * 60); // 7 days
+
+      // Store in database WITH refreshToken
+      await database.getClient().session.create({
+        data: {
+          sessionId,
+          userId: user.id,
+          deviceInfo: JSON.stringify(sessionData.deviceInfo),
+          ipAddress,
+          userAgent,
+          refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        }
+      });
+
+      // Store refresh token in RefreshToken table
+      await database.getClient().refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        }
+      });
+
+      // Send welcome email with verification link (best-effort)
       try {
-        const verificationUrl = `${process.env.API_URL || 'http://localhost:3000'}/api/auth/verify-email?token=${encodeURIComponent(
-          await this.createEmailVerificationToken(user.id)
-        )}`;
-        await EmailService.sendVerificationEmail({
-          to: user.email,
-          verificationUrl,
-          firstName: user.firstName || 'there'
-        });
+        console.log('[Registration] Attempting to send welcome email to:', user.email);
+        
+        // Check if email service is enabled
+        if (!EmailService.enabled) {
+          console.warn('[Registration] Email service is disabled. BREVO_API_KEY may not be set.');
+          logger.warn('Email service disabled - welcome email not sent');
+        } else {
+          const verificationToken = await this.createEmailVerificationToken(user.id);
+          const verificationUrl = `${process.env.FRONTEND_URL || process.env.API_URL || 'http://localhost:3001'}/verify-email?token=${encodeURIComponent(verificationToken)}`;
+          
+          console.log('[Registration] Verification URL generated:', verificationUrl);
+          
+          // Send welcome email with verification link
+          const emailResult = await EmailService.sendWelcomeEmail({
+            to: user.email,
+            firstName: user.firstName || 'there',
+            verificationUrl
+          });
+          
+          if (emailResult.sent) {
+            console.log('[Registration] Welcome email sent successfully to:', user.email);
+            logger.info(`Welcome email sent to: ${user.email}`);
+          } else {
+            console.error('[Registration] Failed to send welcome email:', emailResult.reason || emailResult.error);
+            logger.error(`Failed to send welcome email to ${user.email}:`, emailResult.reason || emailResult.error);
+          }
+        }
       } catch (e) {
-        console.warn('Failed to send verification email:', e?.message || e);
+        console.error('[Registration] Error sending welcome email:', e?.message || e);
+        console.error('[Registration] Error stack:', e?.stack);
+        logger.error('Failed to send welcome email:', e);
       }
 
       return {
         success: true,
         message: 'User registered successfully',
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          status: user.status
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            status: user.status
+          },
+          accessToken,
+          refreshToken,
+          sessionId
         }
       };
     } catch (error) {
@@ -185,6 +311,60 @@ class AuthService {
       }
     });
     return token;
+  }
+
+  // Verify email using token
+  static async verifyEmail(token) {
+    try {
+      // Find the verification token
+      const tokenRecord = await database.getClient().refreshToken.findFirst({
+        where: {
+          token,
+          isRevoked: false,
+          expiresAt: { gt: new Date() }
+        },
+        include: { user: true }
+      });
+
+      if (!tokenRecord) {
+        throw new Error('Invalid or expired verification token');
+      }
+
+      // Update user email as verified
+      await database.getClient().user.update({
+        where: { id: tokenRecord.userId },
+        data: { emailVerified: true }
+      });
+
+      // Revoke the verification token
+      await database.getClient().refreshToken.update({
+        where: { id: tokenRecord.id },
+        data: { isRevoked: true, revokedAt: new Date() }
+      });
+
+      // Log verification
+      await AuditLogger.log({
+        userId: tokenRecord.userId,
+        action: 'UPDATE_PROFILE',
+        message: 'Email verified successfully',
+        details: { email: tokenRecord.user.email }
+      });
+
+      logger.info(`Email verified for user: ${tokenRecord.user.email}`);
+
+      return {
+        success: true,
+        message: 'Email verified successfully',
+        user: {
+          id: tokenRecord.user.id,
+          email: tokenRecord.user.email,
+          emailVerified: true
+        }
+      };
+    } catch (error) {
+      logger.error('Email verification error:', error);
+      throw error;
+    }
   }
 
   // Login user
@@ -230,16 +410,34 @@ class AuthService {
         throw new Error('Invalid credentials');
       }
 
-      // Check user status
-      await AuditLogger.log({
-        userId: user.id,
-        action: 'LOGIN',
-        level: 'WARN',
-        message: 'Failed login attempt - user not active',
-        ipAddress,
-        userAgent,
-        details: { status: user.status }
-      });
+      // Check user status - only block SUSPENDED accounts
+      // Rate limiting already handles abuse, so we allow PENDING_VERIFICATION and INACTIVE to login
+      if (user.status === 'SUSPENDED') {
+        await AuditLogger.log({
+          userId: user.id,
+          action: 'LOGIN',
+          level: 'WARN',
+          message: 'Failed login attempt - account suspended',
+          ipAddress,
+          userAgent,
+          details: { status: user.status }
+        });
+        throw new Error('Your account has been suspended. Please contact support for assistance.');
+      }
+
+      // Log non-active status logins for monitoring (but allow them to proceed)
+      if (user.status !== 'ACTIVE') {
+        await AuditLogger.log({
+          userId: user.id,
+          action: 'LOGIN',
+          level: 'INFO',
+          message: `Login with non-active status: ${user.status}`,
+          ipAddress,
+          userAgent,
+          details: { status: user.status }
+        });
+        // Allow login to proceed - rate limiting will handle any abuse
+      }
 
       // Generate sessionId first
       const sessionId = uuidv4();
@@ -349,9 +547,9 @@ class AuthService {
         throw new Error('Invalid or expired refresh token');
       }
 
-      // Check if user is still active
-      if (tokenRecord.user.status !== 'ACTIVE') {
-        throw new Error('User account is not active');
+      // Only block SUSPENDED users from refreshing tokens
+      if (tokenRecord.user.status === 'SUSPENDED') {
+        throw new Error('Your account has been suspended. Please contact support for assistance.');
       }
 
       // Get session
@@ -386,32 +584,39 @@ class AuthService {
     }
   }
 
-  // Logout user
+  // Logout user - clear all sessions
   static async logout(userId, sessionId, ipAddress, userAgent) {
     try {
-      // Revoke session in Redis
-      await redisClient.deleteSession(sessionId);
+      // Get all active sessions for this user
+      const allSessions = await database.getClient().session.findMany({
+        where: { userId, status: 'ACTIVE' }
+      });
 
-      // Update session in database
+      // Revoke all sessions in Redis
+      for (const session of allSessions) {
+        await redisClient.deleteSession(session.sessionId);
+      }
+
+      // Update all sessions in database to REVOKED
       await database.getClient().session.updateMany({
-        where: { sessionId, userId },
+        where: { userId, status: 'ACTIVE' },
         data: { status: 'REVOKED' }
       });
 
       // Revoke all refresh tokens for this user
       await database.getClient().refreshToken.updateMany({
-        where: { userId },
+        where: { userId, isRevoked: false },
         data: { isRevoked: true, revokedAt: new Date() }
       });
 
       // Log logout
       await AuditLogger.logLogout(userId, ipAddress, userAgent);
 
-      logger.info(`User logged out: ${userId}`);
+      logger.info(`User logged out from all sessions: ${userId}`);
 
       return {
         success: true,
-        message: 'Logout successful'
+        message: 'Logout successful - all sessions cleared'
       };
     } catch (error) {
       logger.error('Logout error:', error);

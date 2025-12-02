@@ -76,7 +76,7 @@ const seedDatabase = async () => {
 
     // Create admin user
     console.log('👤 Creating admin user...');
-    const hashedPassword = await bcrypt.hash('admin123', 12);
+    const hashedPassword = await bcrypt.hash('12345678', 12);
     
     const adminUser = await database.getClient().user.upsert({
       where: { email: 'admin@example.com' },
@@ -190,10 +190,17 @@ const seedDatabase = async () => {
 
     console.log('✅ Database seeding completed successfully!');
     console.log('\n📋 Test Accounts:');
-    console.log('Admin: admin@example.com / admin123');
+    console.log('Admin: admin@example.com / 12345678');
     console.log('User: user@example.com / user123');
     console.log('Vendor: vendor@example.com / vendor123');
     console.log('Mentor: mentor@example.com / mentor123');
+
+    // Seed contracts if requested
+    if (process.env.SEED_CONTRACTS === 'true') {
+      console.log('\n🌱 Seeding contracts...');
+      const seedContracts = require('./contractSeeder');
+      await seedContracts();
+    }
 
   } catch (error) {
     console.error('❌ Database seeding failed:', error);

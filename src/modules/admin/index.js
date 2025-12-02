@@ -33,9 +33,57 @@ const createRoleSchema = z.object({
   permissionIds: z.array(z.string()).optional()
 });
 
-// @route   GET /api/admin/stats
-// @desc    Get system statistics
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/stats:
+ *   get:
+ *     summary: Get system statistics
+ *     description: Get comprehensive system statistics including user counts, sessions, and audit logs
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         active:
+ *                           type: integer
+ *                         byRole:
+ *                           type: array
+ *                     sessions:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         active:
+ *                           type: integer
+ *                     auditLogs:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                     recentLogins:
+ *                       type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/stats', async (req, res) => {
   try {
     const [
@@ -97,9 +145,83 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// @route   GET /api/admin/audit-logs
-// @desc    Get audit logs
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/audit-logs:
+ *   get:
+ *     summary: Get audit logs
+ *     description: Get paginated audit logs with filtering options
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Filter by user ID
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *         description: Filter by action
+ *       - in: query
+ *         name: resource
+ *         schema:
+ *           type: string
+ *         description: Filter by resource
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *           enum: [INFO, WARN, ERROR]
+ *         description: Filter by log level
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Start date filter
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: End date filter
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Audit logs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     auditLogs:
+ *                       type: array
+ *                     pagination:
+ *                       type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/audit-logs', async (req, res) => {
   try {
     const {
@@ -161,9 +283,34 @@ router.get('/audit-logs', async (req, res) => {
   }
 });
 
-// @route   GET /api/admin/permissions
-// @desc    Get all permissions
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/permissions:
+ *   get:
+ *     summary: Get all permissions
+ *     description: Get list of all available permissions
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Permissions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/permissions', async (req, res) => {
   try {
     const permissions = await database.getClient().permission.findMany({
@@ -182,9 +329,45 @@ router.get('/permissions', async (req, res) => {
   }
 });
 
-// @route   POST /api/admin/permissions
-// @desc    Create new permission
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/permissions:
+ *   post:
+ *     summary: Create new permission
+ *     description: Create a new permission with resource and action
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, resource, action]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Read Users"
+ *               description:
+ *                 type: string
+ *                 example: "Permission to read user data"
+ *               resource:
+ *                 type: string
+ *                 example: "users"
+ *               action:
+ *                 type: string
+ *                 example: "read"
+ *     responses:
+ *       201:
+ *         description: Permission created successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.post('/permissions', async (req, res) => {
   try {
     const validatedData = createPermissionSchema.parse(req.body);
@@ -225,9 +408,41 @@ router.post('/permissions', async (req, res) => {
   }
 });
 
-// @route   POST /api/admin/permissions/assign
-// @desc    Assign permission to user
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/permissions/assign:
+ *   post:
+ *     summary: Assign permission to user
+ *     description: Assign a permission to a specific user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId, permissionId]
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: "clx1234567890abcdef"
+ *               permissionId:
+ *                 type: string
+ *                 example: "clx9876543210fedcba"
+ *     responses:
+ *       201:
+ *         description: Permission assigned successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: User or permission not found
+ */
 router.post('/permissions/assign', async (req, res) => {
   try {
     const validatedData = assignPermissionSchema.parse(req.body);
@@ -297,9 +512,36 @@ router.post('/permissions/assign', async (req, res) => {
   }
 });
 
-// @route   DELETE /api/admin/permissions/:userId/:permissionId
-// @desc    Revoke permission from user
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/permissions/{userId}/{permissionId}:
+ *   delete:
+ *     summary: Revoke permission from user
+ *     description: Revoke a permission from a specific user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: path
+ *         name: permissionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Permission ID
+ *     responses:
+ *       200:
+ *         description: Permission revoked successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.delete('/permissions/:userId/:permissionId', async (req, res) => {
   try {
     const { userId, permissionId } = req.params;
@@ -335,9 +577,23 @@ router.delete('/permissions/:userId/:permissionId', async (req, res) => {
   }
 });
 
-// @route   GET /api/admin/roles
-// @desc    Get all roles
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/roles:
+ *   get:
+ *     summary: Get all roles
+ *     description: Get list of all roles with their permissions
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Roles retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/roles', async (req, res) => {
   try {
     const roles = await database.getClient().role.findMany({
@@ -359,9 +615,44 @@ router.get('/roles', async (req, res) => {
   }
 });
 
-// @route   POST /api/admin/roles
-// @desc    Create new role
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/roles:
+ *   post:
+ *     summary: Create new role
+ *     description: Create a new role with optional permissions
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Moderator"
+ *               description:
+ *                 type: string
+ *                 example: "Moderator role with limited permissions"
+ *               permissionIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["perm1", "perm2"]
+ *     responses:
+ *       201:
+ *         description: Role created successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.post('/roles', async (req, res) => {
   try {
     const validatedData = createRoleSchema.parse(req.body);
@@ -408,9 +699,36 @@ router.post('/roles', async (req, res) => {
   }
 });
 
-// @route   GET /api/admin/sessions
-// @desc    Get all active sessions
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/sessions:
+ *   get:
+ *     summary: Get all active sessions
+ *     description: Get paginated list of all active user sessions
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Sessions retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.get('/sessions', async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
@@ -460,9 +778,30 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
-// @route   DELETE /api/admin/sessions/:sessionId
-// @desc    Revoke session (Admin only)
-// @access  Private (Admin)
+/**
+ * @swagger
+ * /api/admin/sessions/{sessionId}:
+ *   delete:
+ *     summary: Revoke session (Admin only)
+ *     description: Revoke a specific user session by session ID
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Session ID to revoke
+ *     responses:
+ *       200:
+ *         description: Session revoked successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
 router.delete('/sessions/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;

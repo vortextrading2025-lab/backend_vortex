@@ -24,7 +24,7 @@ const generalLimiter = rateLimit({
 // Auth rate limiting (stricter)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 auth requests per windowMs
+  max: 10, // limit each IP to 10 auth requests per windowMs (increased for better UX)
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again later.'
@@ -32,6 +32,13 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many authentication attempts, please try again later.',
+      retryAfter: Math.round((req.rateLimit.resetTime - Date.now()) / 1000)
+    });
+  }
 });
 
 // Password reset rate limiting
