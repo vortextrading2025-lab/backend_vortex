@@ -131,7 +131,7 @@ class AuthService {
         }
       }
 
-      // Create user
+      // Create user first
       const user = await database.getClient().user.create({
         data: {
           email: validatedData.email,
@@ -146,11 +146,20 @@ class AuthService {
       });
       console.log("user ==>", user);
 
-      // Link user to invite if provided
+      // Link user to invite if provided (inviter becomes mentor)
       if (inviteLink) {
         const InviteService = require('../contract/inviteService');
         await InviteService.useInviteLink(validatedData.inviteCode, user.id);
         logger.info(`User ${user.id} registered via invite code ${validatedData.inviteCode} from user ${inviteLink.inviterId}`);
+      } else if (validatedData.role === 'USER') {
+        // Auto-assign mentor for regular users (if no invite link)
+        try {
+          const PurchaseService = require('../../services/purchaseService');
+          await PurchaseService.assignDefaultMentor(user.id);
+        } catch (error) {
+          logger.warn(`Could not auto-assign mentor to user: ${error.message}`);
+          // Continue registration even if mentor assignment fails
+        }
       }
 
       // Create profile based on role

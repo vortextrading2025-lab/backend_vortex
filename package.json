@@ -13,6 +13,7 @@
     "db:seed:contracts": "node src/database/seeders/seedContracts.js",
     "db:seed:vortex": "node src/database/seeders/seedVortexSystem.js",
     "db:reset:contracts": "node src/database/seeders/resetAndCreateContracts.js",
+    "db:cleanup:contracts": "node src/database/cleanup/deleteOldContracts.js",
     "db:studio": "prisma studio",
     "test": "jest",
     "test:watch": "jest --watch",
