@@ -428,13 +428,16 @@ class PurchaseService {
           // If hostId is not set, default to mentorId
           const hostId = request.hostId || request.mentorId;
           
-          // Place unit under the host's active unit (mentor decides who the host is)
+          // Placement follows game rules:
+          // - Odd units (101, 103, etc.) → Placed under HOST's active unit
+          // - Even units (102, 104, etc.) → Placed under OWNER's active unit
+          // hostId is stored for tracking referral relationships
           const unit = await PlacementService.placeUnit(
             request.userId,
             unitNumber,
             request.contractGameId,
             request.mentorId,
-            hostId, // Pass the hostId that mentor selected
+            hostId, // Pass the hostId that mentor selected (for tracking)
             tx // Pass transaction client
           );
 

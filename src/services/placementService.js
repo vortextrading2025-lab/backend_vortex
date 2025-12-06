@@ -258,25 +258,42 @@ class PlacementService {
       if (unitNumber >= 2001) stage = 2;
       if (unitNumber >= 3001) stage = 3;
 
-      // Step 3: Find target active unit
-      // Mentor decides who the host is (hostId parameter)
-      // Place unit under the host's active unit
-      // Default to mentor if hostId is not provided
+      // Step 3: Find target active unit based on game placement rules
+      // Game Placement Rules (ALWAYS followed, regardless of host assignment):
+      // - Odd units (101, 103, 105, etc.) → ALWAYS place under HOST's active unit
+      // - Even units (102, 104, 106, etc.) → ALWAYS place under OWNER's (user's) active unit
+      // 
+      // Note: hostId is stored for tracking referral relationships,
+      // but placement target is ALWAYS determined by the odd/even rule
       const finalHostId = hostId || mentorId;
       let targetActiveUnit = null;
+      const isOddUnit = unitNumber % 2 === 1;
 
       if (!finalHostId) {
         throw new Error('Host ID is required for unit placement');
       }
 
-      // Place under host's active unit (mentor decides who the host is)
-      targetActiveUnit = await this.findActiveUnit(finalHostId, contractGameId, stage, tx);
-      
-      // If host has no active unit, use system root
-      if (!targetActiveUnit) {
-        targetActiveUnit = await this.findSystemRoot(contractGameId, stage, tx);
+      if (isOddUnit) {
+        // Odd units (101, 103, etc.): ALWAYS place under HOST's active unit
+        targetActiveUnit = await this.findActiveUnit(finalHostId, contractGameId, stage, tx);
+        
+        // If host has no active unit, use system root
         if (!targetActiveUnit) {
-          throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, tx);
+          if (!targetActiveUnit) {
+            throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+          }
+        }
+      } else {
+        // Even units (102, 104, etc.): ALWAYS place under OWNER's (user's) own active unit
+        targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, tx);
+        
+        // If owner has no active unit, use system root as fallback
+        if (!targetActiveUnit) {
+          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, tx);
+          if (!targetActiveUnit) {
+            throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+          }
         }
       }
 
