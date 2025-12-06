@@ -150,6 +150,38 @@ class WalletService {
     logger.info(`Withdrew ${amount} from wallet for user ${userId}`);
     return updatedWallet;
   }
+
+  /**
+   * Process payout to wallet from unit completion
+   */
+  static async processPayoutToWallet(unitId, ownerId, amount, stage, contractGameId) {
+    const wallet = await this.getWallet(ownerId);
+
+    const updatedWallet = await database.getClient().wallet.update({
+      where: { id: wallet.id },
+      data: {
+        balance: { increment: amount },
+        totalEarned: { increment: amount }
+      }
+    });
+
+    // Create transaction record
+    await database.getClient().transaction.create({
+      data: {
+        walletId: wallet.id,
+        userId: ownerId,
+        type: 'DEPOSIT',
+        amount: amount,
+        status: 'COMPLETED',
+        referenceId: unitId,
+        referenceType: 'PAYOUT',
+        description: `Payout for unit completion - Stage ${stage}`
+      }
+    });
+
+    logger.info(`Processed payout of ${amount} to wallet for user ${ownerId} from unit ${unitId}`);
+    return updatedWallet;
+  }
 }
 
 module.exports = WalletService;

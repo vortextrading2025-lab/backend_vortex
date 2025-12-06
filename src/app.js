@@ -169,9 +169,14 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authModule.router);
 app.use('/api/users', userModule.router);
-app.use('/api/admin', adminModule.router);
+// Register more specific admin routes first
+app.use('/api/admin/contract-games', require('./modules/admin/contractGames').router);
 app.use('/api/admin/pricing', require('./modules/admin/pricing').router);
+app.use('/api/admin', adminModule.router);
 app.use('/api/contracts', contractModule.router);
+app.use('/api/mentor', require('./modules/mentor').router);
+app.use('/api/units', require('./modules/user/units').router);
+app.use('/api', require('./modules/shared/units').router);
 app.use('/api/wallet', require('./modules/wallet').router);
 
 // 404 handler
