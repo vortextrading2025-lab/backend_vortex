@@ -21,46 +21,62 @@ const purchaseRequestSchema = z.object({
 
 /**
  * POST /api/units/purchase
- * Request to purchase units (DEMO MODE: Auto-approves and auto-places)
+ * Request to purchase units - creates a PENDING request for mentor approval
+ * Mentor must approve and select a host, then place the units
  */
 router.post('/purchase', async (req, res) => {
   try {
     const validatedData = purchaseRequestSchema.parse(req.body);
     const userId = req.user.id;
 
-    // DEMO MODE: Create request, auto-approve, and auto-place
+    // Create purchase request - status will be PENDING
+    // Mentor must approve (and select host) and place the units
     const request = await PurchaseService.createPurchaseRequest(
       userId,
       validatedData.contractGameId,
       validatedData.unitCount
     );
 
-    // Auto-approve the request (demo mode - no payment gateway)
-    const approvedRequest = await PurchaseService.approvePurchase(request.id, request.mentorId);
+    // Get the full request with related data
+    const fullRequest = await database.getClient().purchaseRequest.findUnique({
+      where: { id: request.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        contractGame: {
+          select: {
+            id: true,
+            name: true,
+            downPayment: true
+          }
+        },
+        mentor: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
 
-    // Auto-place the units
-    const placementResult = await PurchaseService.processPlacement(approvedRequest.id);
+    logger.info(`Purchase request created: ${request.id} for user ${userId}. Waiting for mentor approval.`);
 
-    // Get wallet service to simulate payment deduction (optional in demo mode)
-    const WalletService = require('../../modules/wallet/walletService');
-    try {
-      // In demo mode, we can skip actual payment or just log it
-      logger.info(`DEMO MODE: Simulated payment of $${approvedRequest.totalAmount} for purchase request ${request.id}`);
-    } catch (walletError) {
-      // Ignore wallet errors in demo mode
-      logger.warn('Wallet service not available in demo mode, skipping payment');
-    }
-
-    return successResponse(res, 201, 'Units purchased successfully (Demo Mode)', {
-      request: placementResult.request,
-      units: placementResult.units,
-      activeUnit: placementResult.units.find(u => u.isActive) || placementResult.units[0] || null
+    return successResponse(res, 201, 'Purchase request created. Waiting for mentor approval.', {
+      request: fullRequest
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return validationErrorResponse(res, error.errors);
     }
-    logger.error('Error processing purchase:', error);
+    logger.error('Error creating purchase request:', error);
     return errorResponse(res, 400, error.message);
   }
 });
