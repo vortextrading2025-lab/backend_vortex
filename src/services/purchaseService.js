@@ -154,49 +154,75 @@ class PurchaseService {
     // Calculate total amount
     const totalAmount = contractGame.downPayment * unitCount;
 
-    // Check if user already has a mentor assigned
+    // Check if user is a mentor
     const user = await database.getClient().user.findUnique({
       where: { id: userId },
-      select: { mentorId: true }
+      select: { id: true, role: true, mentorId: true }
     });
 
-    let mentor;
-    if (user && user.mentorId) {
-      // Use user's assigned mentor
-      mentor = await database.getClient().user.findUnique({
-        where: { id: user.mentorId },
-        select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true }
-      });
+    let mentorId = null;
+    let requestStatus = 'PENDING';
+    let hostId = null;
 
-      // Verify mentor is still active
-      if (!mentor || mentor.role !== 'MENTOR' || mentor.status !== 'ACTIVE') {
-        // Mentor is no longer valid, assign a new one
+    // SPECIAL HANDLING FOR MENTORS:
+    // Mentors are NEVER assigned to other mentors
+    // Their purchase requests are auto-approved and placed under admin/system root
+    if (user && user.role === 'MENTOR') {
+      // Get admin user ID for mentorId (for tracking purposes)
+      const admin = await database.getClient().user.findFirst({
+        where: { role: 'ADMIN' },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true }
+      });
+      
+      mentorId = admin ? admin.id : null; // Use admin as "mentor" for tracking, or null
+      hostId = admin ? admin.id : null; // Host is admin/system root
+      requestStatus = 'APPROVED'; // Auto-approve mentor requests
+      
+      logger.info(`Mentor ${userId} creating purchase request - auto-approved, will be placed under admin/system root`);
+    } else {
+      // Regular user - assign mentor as usual
+      let mentor;
+      if (user && user.mentorId) {
+        // Use user's assigned mentor
+        mentor = await database.getClient().user.findUnique({
+          where: { id: user.mentorId },
+          select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true }
+        });
+
+        // Verify mentor is still active
+        if (!mentor || mentor.role !== 'MENTOR' || mentor.status !== 'ACTIVE') {
+          // Mentor is no longer valid, assign a new one
+          mentor = await this.assignMentor(userId, contractGameId);
+          // Update user's mentor
+          await database.getClient().user.update({
+            where: { id: userId },
+            data: { mentorId: mentor.id }
+          });
+        }
+      } else {
+        // No mentor assigned, auto-assign one
         mentor = await this.assignMentor(userId, contractGameId);
-        // Update user's mentor
+        // Update user's mentor for future purchases
         await database.getClient().user.update({
           where: { id: userId },
           data: { mentorId: mentor.id }
         });
       }
-    } else {
-      // No mentor assigned, auto-assign one
-      mentor = await this.assignMentor(userId, contractGameId);
-      // Update user's mentor for future purchases
-      await database.getClient().user.update({
-        where: { id: userId },
-        data: { mentorId: mentor.id }
-      });
+      mentorId = mentor.id;
     }
 
     // Create purchase request
     const request = await database.getClient().purchaseRequest.create({
       data: {
         userId: userId,
-        mentorId: mentor.id,
+        mentorId: mentorId, // admin ID for mentors, actual mentor ID for regular users
         contractGameId: contractGameId,
         unitCount: unitCount,
         totalAmount: totalAmount,
-        status: 'PENDING'
+        status: requestStatus, // 'APPROVED' for mentors, 'PENDING' for regular users
+        approvedAt: requestStatus === 'APPROVED' ? new Date() : null,
+        hostId: hostId // admin ID for mentors (system root), null for regular users (set during approval)
       },
       include: {
         user: {
@@ -207,14 +233,14 @@ class PurchaseService {
             lastName: true
           }
         },
-        mentor: {
+        mentor: mentorId ? {
           select: {
             id: true,
             email: true,
             firstName: true,
             lastName: true
           }
-        },
+        } : undefined,
         contractGame: {
           select: {
             id: true,
@@ -225,7 +251,20 @@ class PurchaseService {
       }
     });
 
-    logger.info(`Created purchase request ${request.id} for user ${userId}, ${unitCount} units, total: $${totalAmount}`);
+    logger.info(`Created purchase request ${request.id} for user ${userId}, ${unitCount} units, total: $${totalAmount}, status: ${requestStatus}`);
+    
+    // If mentor request is auto-approved, auto-place units
+    if (requestStatus === 'APPROVED' && user && user.role === 'MENTOR') {
+      // Auto-place mentor units under admin/system root
+      try {
+        await this.processPlacement(request.id);
+        logger.info(`Auto-placed units for mentor ${userId} purchase request ${request.id}`);
+      } catch (error) {
+        logger.error(`Error auto-placing mentor units:`, error);
+        // Don't fail the request creation, just log the error
+      }
+    }
+    
     return request;
   }
 
@@ -257,7 +296,7 @@ class PurchaseService {
         throw new Error(`Purchase request is already ${request.status}`);
       }
 
-      // If hostId is provided, validate it exists and is a valid user
+      // If hostId is provided, validate it exists and has units in this contract game
       // If not provided, default to mentor (mentor is the host by default)
       let finalHostId = hostId || mentorId;
       if (hostId) {
@@ -268,6 +307,23 @@ class PurchaseService {
         if (!hostUser) {
           throw new Error('Host user not found');
         }
+
+        // VALIDATION: If host is not the mentor, they must have units in this contract game
+        // Mentor can always be host (will use system root if no units)
+        // But mentees must have units in the game to be selected as hosts
+        if (hostId !== mentorId) {
+          const hostUnitsCount = await tx.unit.count({
+            where: {
+              ownerId: hostId,
+              contractGameId: request.contractGameId
+            }
+          });
+
+          if (hostUnitsCount === 0) {
+            throw new Error('The selected host must have units in this contract game. Only mentees who are already playing can be selected as hosts.');
+          }
+        }
+
         finalHostId = hostId;
       }
 
@@ -308,6 +364,8 @@ class PurchaseService {
 
       logger.info(`Purchase request ${requestId} approved by mentor ${mentorId}`);
       return updatedRequest;
+    }, {
+      timeout: 20000 // allow more time for approval flow
     });
   }
 
@@ -383,7 +441,8 @@ class PurchaseService {
           user: {
             select: {
               id: true,
-              email: true
+              email: true,
+              role: true // Need role to check if mentor
             }
           },
           mentor: {
@@ -405,12 +464,8 @@ class PurchaseService {
       const placedUnits = [];
       const stage = 1; // Always start with stage 1
 
-      // Get user's mentor (host) - the mentor who approved this request
-      // This mentor becomes the host for the user's units
-      const mentor = await tx.user.findUnique({
-        where: { id: request.mentorId },
-        select: { id: true }
-      });
+      // Check if user is a mentor
+      const isMentor = request.user.role === 'MENTOR';
 
       // Place each unit
       for (let i = 0; i < request.unitCount; i++) {
@@ -423,29 +478,51 @@ class PurchaseService {
         );
 
         try {
-          // Place the unit
-          // Use the hostId that mentor selected when approving (stored in request.hostId)
-          // If hostId is not set, default to mentorId
-          const hostId = request.hostId || request.mentorId;
+          // SPECIAL HANDLING FOR MENTORS:
+          // Mentor units are placed under admin/system root (hostId = admin/system)
+          // Regular users: use hostId from request or default to mentorId
+          let hostId = null;
+          let mentorIdForPlacement = null;
+          
+          if (isMentor) {
+            // Mentors: place under system root, host is admin/system
+            // Use the hostId from request (which should be admin ID) or get admin
+            if (request.hostId) {
+              hostId = request.hostId; // Should be admin ID
+            } else {
+              // Fallback: get admin ID
+              const admin = await tx.user.findFirst({
+                where: { role: 'ADMIN' },
+                orderBy: { createdAt: 'asc' },
+                select: { id: true }
+              });
+              hostId = admin ? admin.id : null;
+            }
+            mentorIdForPlacement = null; // No mentor for mentors
+          } else {
+            // Regular users: use normal placement logic
+            hostId = request.hostId || request.mentorId;
+            mentorIdForPlacement = request.mentorId;
+          }
           
           // Placement follows game rules:
-          // - Odd units (101, 103, etc.) → Placed under HOST's active unit
-          // - Even units (102, 104, etc.) → Placed under OWNER's active unit
+          // - Odd units (101, 103, etc.) → Placed under HOST's active unit (or system root for mentors)
+          // - Even units (102, 104, etc.) → Placed under OWNER's active unit (or system root for mentors)
           // hostId is stored for tracking referral relationships
           const unit = await PlacementService.placeUnit(
             request.userId,
             unitNumber,
             request.contractGameId,
-            request.mentorId,
-            hostId, // Pass the hostId that mentor selected (for tracking)
+            mentorIdForPlacement, // null for mentors
+            hostId, // admin ID for mentors (system root), mentor's choice for regular users
             tx // Pass transaction client
           );
 
-          // Ensure hostId is set correctly (mentor's choice)
+          // Ensure hostId is set correctly
           await tx.unit.update({
             where: { id: unit.id },
             data: {
-              hostId: hostId // Use the hostId that mentor selected
+              hostId: hostId // admin ID for mentors, mentor's choice for regular users
             }
           });
 

@@ -245,6 +245,65 @@ router.get('/mentees', async (req, res) => {
 });
 
 /**
+ * GET /api/mentor/mentees-in-game/:contractGameId
+ * Get mentees who have units in a specific contract game (for host selection)
+ * Only returns mentees who are already playing in that game
+ */
+router.get('/mentees-in-game/:contractGameId', async (req, res) => {
+  try {
+    const mentorId = req.user.id;
+    const { contractGameId } = req.params;
+
+    // Get all mentees who have units in this specific contract game
+    const menteesWithUnits = await database.getClient().user.findMany({
+      where: {
+        mentorId: mentorId,
+        role: 'USER', // Only regular users, not other mentors
+        ownedUnits: {
+          some: {
+            contractGameId: contractGameId
+          }
+        }
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        status: true,
+        _count: {
+          select: {
+            ownedUnits: {
+              where: {
+                contractGameId: contractGameId
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Format response
+    const mentees = menteesWithUnits.map(mentee => ({
+      id: mentee.id,
+      email: mentee.email,
+      firstName: mentee.firstName,
+      lastName: mentee.lastName,
+      status: mentee.status,
+      unitCount: mentee._count.ownedUnits
+    }));
+
+    return successResponse(res, 200, 'Mentees in game retrieved successfully', mentees);
+  } catch (error) {
+    logger.error('Error getting mentees in game:', error);
+    return errorResponse(res, 500, error.message);
+  }
+});
+
+/**
  * GET /api/mentor/my-tree
  * View mentor's tree from their active unit (root of their tree)
  */

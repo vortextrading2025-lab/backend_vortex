@@ -1,7 +1,6 @@
 const database = require('../config/database');
 const logger = require('../modules/logging/logger');
 const PlacementService = require('./placementService');
-const WalletService = require('../modules/wallet/walletService');
 
 /**
  * FulfillmentService
@@ -40,29 +39,40 @@ class FulfillmentService {
    * Returns object with level as key and count as value
    */
   static async countUnitsByLevel(unitId) {
-    const unit = await database.getClient().unit.findUnique({
+    const client = database.getClient();
+
+    // Get root unit info (we'll need its level for relative checks)
+    const root = await client.unit.findUnique({
       where: { id: unitId },
-      select: { level: true }
+      select: { id: true, level: true, contractGameId: true, stage: true }
     });
 
-    if (!unit) {
+    if (!root) {
       return {};
     }
 
-    const children = await database.getClient().unit.findMany({
-      where: {
-        parentUnitId: unitId,
-        isCompleted: false
-      },
-      select: {
-        level: true
-      }
-    });
-
+    // BFS over descendants to count units per absolute level
     const levelCounts = {};
-    children.forEach(child => {
-      levelCounts[child.level] = (levelCounts[child.level] || 0) + 1;
-    });
+    let currentIds = [unitId];
+
+    while (currentIds.length > 0) {
+      const children = await client.unit.findMany({
+        where: {
+          parentUnitId: { in: currentIds },
+          contractGameId: root.contractGameId,
+          stage: root.stage // only count units in the same stage tree
+        },
+        select: { id: true, level: true }
+      });
+
+      if (children.length === 0) break;
+
+      children.forEach((child) => {
+        levelCounts[child.level] = (levelCounts[child.level] || 0) + 1;
+      });
+
+      currentIds = children.map((c) => c.id);
+    }
 
     return levelCounts;
   }
@@ -187,7 +197,15 @@ class FulfillmentService {
    * Fulfill a unit: mark as completed, create payout, move to next stage
    */
   static async fulfillUnit(unitId) {
-    return await database.getClient().$transaction(async (tx) => {
+    logger.info(`FULFILL_START unitId=${unitId}`);
+    const client = database.getClient();
+
+    // First, perform the core fulfillment in a short transaction:
+    // - validate & check fulfillment
+    // - mark unit as completed/inactive
+    // - create payout (PENDING)
+    // Then, outside the transaction, credit the wallet and mark payout CREDITED.
+    const { updatedUnit, payoutId, payoutAmount, parentUnitId } = await client.$transaction(async (tx) => {
       const unit = await tx.unit.findUnique({
         where: { id: unitId },
         include: {
@@ -220,7 +238,8 @@ class FulfillmentService {
       // Check if should be fulfilled
       const shouldFulfill = await this.checkFulfillment(unitId);
       if (!shouldFulfill) {
-        return null; // Not ready to fulfill yet
+        // Return null structure to indicate not ready (will be handled outside transaction)
+        return { updatedUnit: null, payoutId: null, payoutAmount: 0, parentUnitId: null };
       }
 
       // Get payout amount based on stage
@@ -234,23 +253,23 @@ class FulfillmentService {
       }
 
       // Mark unit as completed
-      // IMPORTANT: Unit stays active until it completes all 3 stages
-      // Only deactivate when completing Stage 3 (final stage)
+      // IMPORTANT: Unit becomes inactive after completing each stage
+      // After Stage 1 completion, unit becomes inactive (new Stage 2 unit becomes active)
+      // After Stage 2 completion, unit becomes inactive (new Stage 3 unit becomes active)
+      // After Stage 3 completion, unit becomes inactive (fully completed)
       const updateData = {
         isCompleted: true,
         completedAt: new Date(),
-        isActive: unit.stage === 3 ? false : true // Only deactivate after Stage 3 completion
+        isActive: false // Deactivate after completing any stage
       };
 
       // Move to next stage if not in stage 3
       if (unit.stage === 1) {
-        // Stage 1 → Stage 2: Unit stays active, will complete Stage 2 next
-        // This will be handled by the purchase/placement system
-        // For now, just mark as completed for Stage 1
+        // Stage 1 → Stage 2: Unit becomes inactive after completing Stage 1
+        // A new Stage 2 unit will become active for the user
       } else if (unit.stage === 2) {
-        // Stage 2 → Stage 3: Unit stays active, will complete Stage 3 next
-        // This will be handled by the purchase/placement system
-        // For now, just mark as completed for Stage 2
+        // Stage 2 → Stage 3: Unit becomes inactive after completing Stage 2
+        // A new Stage 3 unit will become active for the user
       } else if (unit.stage === 3) {
         // Stage 3 → COMPLETED (final stage)
         // Unit becomes inactive after completing all 3 stages
@@ -263,66 +282,120 @@ class FulfillmentService {
       });
 
       // Create payout record
-      const wallet = await WalletService.getWallet(unit.ownerId);
       const payout = await tx.payout.create({
         data: {
           unitId: unitId,
           userId: unit.ownerId,
-          walletId: wallet.id,
+          walletId: null, // set after wallet upsert (outside transaction)
           amount: payoutAmount,
           stage: unit.stage,
           status: 'PENDING'
         }
       });
 
-      // Credit wallet
-      await WalletService.processPayoutToWallet(
-        unitId,
-        unit.ownerId,
-        payoutAmount,
-        unit.stage,
-        unit.contractGame.id
-      );
+      // Check fulfillment for parent unit (cascade check) - do this outside transaction
+      const parentUnitId = unit.parentUnitId;
 
-      // Update payout status to CREDITED
-      await tx.payout.update({
-        where: { id: payout.id },
-        data: {
-          status: 'CREDITED',
-          creditedAt: new Date()
-        }
-      });
-
-      // Activate next unit for user if available
-      await PlacementService.activateNextUnit(
-        unit.ownerId,
-        unit.contractGameId,
-        unit.stage
-      );
-
-      // Enhanced logging with owner information
-      const ownerEmail = unit.owner?.email || unit.ownerId;
-      logger.info(`Unit ${unit.unitName} (${unit.unitNumber}) fulfilled in stage ${unit.stage}, payout: $${payoutAmount} to owner ${ownerEmail}`);
-      logger.info(`Earnings added to wallet for ${ownerEmail}: $${payoutAmount} (Total payout for Stage ${unit.stage})`);
-
-      // Check fulfillment for parent unit (cascade check)
-      if (unit.parentUnitId) {
-        // Don't await - let it run asynchronously to avoid blocking
-        setImmediate(() => {
-          this.checkAndFulfillParent(unit.parentUnitId).catch(err => {
-            logger.error(`Error checking parent fulfillment for unit ${unit.parentUnitId}:`, err);
-          });
-        });
-      }
-
-      return await tx.unit.findUnique({
+      const updatedUnit = await tx.unit.findUnique({
         where: { id: unitId },
         include: {
           contractGame: true,
           owner: true
         }
       });
+
+      return { updatedUnit, payoutId: payout.id, payoutAmount, parentUnitId };
+    }, {
+      timeout: 20000 // increase timeout to allow core fulfillment
     });
+
+    // Outside transaction: credit wallet and mark payout CREDITED
+    // This avoids long-running work inside the fulfillment transaction.
+    // Check if fulfillment actually happened (payoutId will be null if not ready)
+    if (!updatedUnit || !payoutId || payoutAmount <= 0) {
+      logger.info(`Unit ${unitId} is not ready to fulfill yet`);
+      return null;
+    }
+    
+    if (payoutId && payoutAmount > 0) {
+      const wallet = await client.wallet.upsert({
+        where: { userId: updatedUnit.ownerId },
+        update: {},
+        create: {
+          userId: updatedUnit.ownerId,
+          balance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0
+        }
+      });
+
+      await client.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { increment: payoutAmount },
+          totalEarned: { increment: payoutAmount }
+        }
+      });
+
+      await client.transaction.create({
+        data: {
+          walletId: wallet.id,
+          userId: updatedUnit.ownerId,
+          type: 'DEPOSIT',
+          amount: payoutAmount,
+          status: 'COMPLETED',
+          referenceId: updatedUnit.id,
+          referenceType: 'PAYOUT',
+          description: `Payout for unit completion - Stage ${updatedUnit.stage}`
+        }
+      });
+
+      // Attach walletId to payout now that wallet exists
+      await client.payout.update({
+        where: { id: payoutId },
+        data: {
+          walletId: wallet.id
+        }
+      });
+
+      await client.payout.update({
+        where: { id: payoutId },
+        data: {
+          status: 'CREDITED',
+          creditedAt: new Date()
+        }
+      });
+    }
+
+    // Enhanced logging with owner information
+    const ownerEmail = updatedUnit.owner?.email || updatedUnit.ownerId;
+    logger.info(`Unit ${updatedUnit.unitName} (${updatedUnit.unitNumber}) fulfilled in stage ${updatedUnit.stage}, payout: $${payoutAmount} to owner ${ownerEmail}`);
+    logger.info(`Earnings added to wallet for ${ownerEmail}: $${payoutAmount} (Total payout for Stage ${updatedUnit.stage})`);
+
+    // Activate next unit for user if available (outside transaction to avoid timeout)
+    setImmediate(async () => {
+      try {
+        await PlacementService.activateNextUnit(
+          updatedUnit.ownerId,
+          updatedUnit.contractGameId,
+          updatedUnit.stage
+        );
+      } catch (err) {
+        logger.error(`Error activating next unit for user ${updatedUnit.ownerId}:`, err);
+      }
+    });
+
+    // Check fulfillment for parent unit (cascade check) - outside transaction
+    if (parentUnitId) {
+      setImmediate(() => {
+        this.checkAndFulfillParent(parentUnitId).catch(err => {
+          logger.error(`Error checking parent fulfillment for unit ${parentUnitId}:`, err);
+        });
+      });
+    }
+
+    logger.info(`FULFILL_DONE unitId=${unitId}`);
+    return updatedUnit;
   }
 
   /**

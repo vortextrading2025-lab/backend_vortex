@@ -342,6 +342,14 @@ router.post('/refresh', async (req, res) => {
       result.data
     );
   } catch (error) {
+    // Clear refresh token cookie if token is expired or invalid
+    if (error.message.includes('expired') || error.message.includes('Invalid') || error.message.includes('invalid')) {
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+    }
     return authErrorResponse(res, error.message);
   }
 });
@@ -386,8 +394,12 @@ router.post('/logout', authenticate, async (req, res) => {
       userAgent
     );
     
-    // Clear refresh token cookie
-    res.clearCookie('refreshToken');
+    // Clear refresh token cookie with same options as when it was set
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
     
     return successResponse(
       res,
@@ -396,6 +408,12 @@ router.post('/logout', authenticate, async (req, res) => {
       result.data
     );
   } catch (error) {
+    // Always clear cookie even on error
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
     return serverErrorResponse(res, 'Logout failed', error);
   }
 });
