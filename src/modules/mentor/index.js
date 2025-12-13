@@ -203,39 +203,74 @@ router.get('/mentees', async (req, res) => {
       }
     });
 
-    // Get additional stats for each mentee
-    const menteesWithStats = await Promise.all(
-      mentees.map(async (mentee) => {
-        const [totalRequests, totalUnits, activeUnits] = await Promise.all([
-          database.getClient().purchaseRequest.count({
-            where: {
-              userId: mentee.id,
-              mentorId: mentorId
-            }
-          }),
-          database.getClient().unit.count({
-            where: {
-              ownerId: mentee.id
-            }
-          }),
-          database.getClient().unit.count({
-            where: {
-              ownerId: mentee.id,
-              isActive: true
-            }
-          })
-        ]);
+    if (mentees.length === 0) {
+      return successResponse(res, 200, 'Mentees retrieved successfully', []);
+    }
 
-        return {
-          ...mentee,
-          stats: {
-            totalRequests,
-            totalUnits,
-            activeUnits
-          }
-        };
+    // Get mentee IDs for batch queries
+    const menteeIds = mentees.map(m => m.id);
+
+    // Batch query: Get all stats in 3 queries instead of 3*N queries
+    const [purchaseRequestCounts, unitCounts, activeUnitCounts] = await Promise.all([
+      // Get purchase request counts for all mentees
+      database.getClient().purchaseRequest.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: menteeIds },
+          mentorId: mentorId
+        },
+        _count: {
+          id: true
+        }
+      }),
+      // Get total unit counts for all mentees
+      database.getClient().unit.groupBy({
+        by: ['ownerId'],
+        where: {
+          ownerId: { in: menteeIds }
+        },
+        _count: {
+          id: true
+        }
+      }),
+      // Get active unit counts for all mentees
+      database.getClient().unit.groupBy({
+        by: ['ownerId'],
+        where: {
+          ownerId: { in: menteeIds },
+          isActive: true
+        },
+        _count: {
+          id: true
+        }
       })
+    ]);
+
+    // Create lookup maps for O(1) access
+    const requestCountMap = new Map(
+      purchaseRequestCounts.map(item => [item.userId, item._count.id])
     );
+    const unitCountMap = new Map(
+      unitCounts.map(item => [item.ownerId, item._count.id])
+    );
+    const activeUnitCountMap = new Map(
+      activeUnitCounts.map(item => [item.ownerId, item._count.id])
+    );
+
+    // Combine mentees with their stats
+    const menteesWithStats = mentees.map((mentee) => ({
+      id: mentee.id,
+      email: mentee.email,
+      firstName: mentee.firstName,
+      lastName: mentee.lastName,
+      status: mentee.status,
+      createdAt: mentee.createdAt,
+      stats: {
+        totalRequests: requestCountMap.get(mentee.id) || 0,
+        totalUnits: unitCountMap.get(mentee.id) || 0,
+        activeUnits: activeUnitCountMap.get(mentee.id) || 0
+      }
+    }));
 
     return successResponse(res, 200, 'Mentees retrieved successfully', menteesWithStats);
   } catch (error) {
