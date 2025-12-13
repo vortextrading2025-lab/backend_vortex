@@ -536,7 +536,18 @@ class AuthService {
       const { refreshToken } = refreshTokenSchema.parse(refreshTokenData);
 
       // Verify refresh token
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      let decoded;
+      try {
+        decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+          throw new Error('Refresh token expired. Please log in again.');
+        }
+        if (error.name === 'JsonWebTokenError') {
+          throw new Error('Invalid refresh token');
+        }
+        throw error;
+      }
       
       if (decoded.type !== 'refresh') {
         throw new Error('Invalid refresh token');

@@ -29,8 +29,7 @@ class ContractGameService {
       throw new Error('Only admins can create contract games');
     }
 
-    // Create contract game and build tree structure
-    // Increase timeout to 30 seconds because we're creating 30+ units in one transaction
+    // Create contract game with system root units only
     const contractGame = await database.getClient().$transaction(async (tx) => {
       // Create contract game
       const game = await tx.contractGame.create({
@@ -46,6 +45,7 @@ class ContractGameService {
       });
 
       // Create system root unit for each stage (Stage 1, 2, 3)
+      // Only create root units - no mentor tree structure
       const systemRoots = [];
       for (let stage = 1; stage <= 3; stage++) {
         const root = await tx.unit.create({
@@ -67,30 +67,7 @@ class ContractGameService {
         systemRoots.push({ stage, root });
       }
 
-      // Get all active mentors
-      const mentors = await tx.user.findMany({
-        where: { 
-          role: 'MENTOR', 
-          status: 'ACTIVE' 
-        },
-        orderBy: { createdAt: 'asc' }
-      });
-
-      // Build binary tree structure for Stage 1 (main game tree)
-      const stage1Root = systemRoots.find(r => r.stage === 1).root;
-      
-      if (mentors.length > 0) {
-        // Build tree structure and assign units to mentors
-        const mentorUnits = await this.buildMentorTreeStructure(
-          tx, 
-          game.id, 
-          stage1Root.id, 
-          mentors
-        );
-        logger.info(`Created contract game ${game.id}: ${name} with tree structure (${mentorUnits.length} mentor units, ${mentors.length} mentors)`);
-      } else {
-        logger.warn(`Created contract game ${game.id}: ${name} but no mentors found - tree structure not built`);
-      }
+      logger.info(`Created contract game ${game.id}: ${name} with system root units only (3 root units for stages 1, 2, 3)`);
 
       // Return game with createdBy relation
       const result = await tx.contractGame.findUnique({
@@ -116,8 +93,8 @@ class ContractGameService {
         payoutStage3: Number(result.payoutStage3)
       };
     }, {
-      maxWait: 30000, // 30 seconds max wait for transaction to start
-      timeout: 30000  // 30 seconds timeout for transaction to complete
+      maxWait: 10000, // 10 seconds max wait for transaction to start
+      timeout: 10000  // 10 seconds timeout for transaction to complete
     });
 
     return contractGame;

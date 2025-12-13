@@ -243,9 +243,9 @@ class PlacementService {
     // If transaction client is provided, use it; otherwise create a new transaction
     const executePlacement = async (client) => {
       // Step 1: Identify owner
-      const owner = await tx.user.findUnique({
+      const owner = await client.user.findUnique({
         where: { id: ownerId },
-        select: { id: true, email: true }
+        select: { id: true, email: true, role: true } // Need role to check if mentor
       });
 
       if (!owner) {
@@ -259,58 +259,71 @@ class PlacementService {
       if (unitNumber >= 3001) stage = 3;
 
       // Step 3: Find target active unit based on game placement rules
-      // Game Placement Rules (ALWAYS followed, regardless of host assignment):
-      // - Odd units (101, 103, 105, etc.) → ALWAYS place under HOST's active unit
-      // - Even units (102, 104, 106, etc.) → ALWAYS place under OWNER's (user's) active unit
-      // 
-      // Note: hostId is stored for tracking referral relationships,
-      // but placement target is ALWAYS determined by the odd/even rule
-      const finalHostId = hostId || mentorId;
+      // SPECIAL: Mentors always place under system root (admin/system)
+      // Regular users follow normal placement rules
+      const isMentor = owner.role === 'MENTOR';
       let targetActiveUnit = null;
       const isOddUnit = unitNumber % 2 === 1;
 
-      if (!finalHostId) {
-        throw new Error('Host ID is required for unit placement');
-      }
-
-      if (isOddUnit) {
-        // Odd units (101, 103, etc.): ALWAYS place under HOST's active unit
-        targetActiveUnit = await this.findActiveUnit(finalHostId, contractGameId, stage, tx);
-        
-        // If host has no active unit, use system root
+      if (isMentor) {
+        // Mentors: ALWAYS place under system root (admin/system)
+        targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
         if (!targetActiveUnit) {
-          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, tx);
-          if (!targetActiveUnit) {
-            throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
-          }
+          throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
         }
       } else {
-        // Even units (102, 104, etc.): ALWAYS place under OWNER's (user's) own active unit
-        targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, tx);
-        
-        // If owner has no active unit, use system root as fallback
-        if (!targetActiveUnit) {
-          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, tx);
+        // Regular users: Follow normal placement rules
+        // Game Placement Rules:
+        // - Odd units (101, 103, 105, etc.) → ALWAYS place under HOST's active unit
+        // - Even units (102, 104, 106, etc.) → ALWAYS place under OWNER's (user's) active unit
+        // 
+        // Note: hostId is stored for tracking referral relationships,
+        // but placement target is ALWAYS determined by the odd/even rule
+        const finalHostId = hostId || mentorId;
+
+        if (!finalHostId) {
+          throw new Error('Host ID is required for unit placement');
+        }
+
+        if (isOddUnit) {
+          // Odd units (101, 103, etc.): ALWAYS place under HOST's active unit
+          targetActiveUnit = await this.findActiveUnit(finalHostId, contractGameId, stage, client);
+          
+          // If host has no active unit, use system root
           if (!targetActiveUnit) {
-            throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+            targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
+            if (!targetActiveUnit) {
+              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+            }
+          }
+        } else {
+          // Even units (102, 104, etc.): ALWAYS place under OWNER's (user's) own active unit
+          targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
+          
+          // If owner has no active unit, use system root as fallback
+          if (!targetActiveUnit) {
+            targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
+            if (!targetActiveUnit) {
+              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+            }
           }
         }
       }
 
       // Step 4: Find vacant level and parent (left-to-right search)
       // This returns { parentUnitId, level } - the actual parent where unit should be placed
-      const vacantPlacement = await this.findVacantLevel(targetActiveUnit.id, tx);
+      const vacantPlacement = await this.findVacantLevel(targetActiveUnit.id, client);
       const actualParentUnitId = vacantPlacement.parentUnitId;
       const vacantLevel = vacantPlacement.level;
 
       // Step 5: Find vacant position (bottom-to-top search)
-      const vacantPosition = await this.findVacantPosition(actualParentUnitId, vacantLevel, tx);
+      const vacantPosition = await this.findVacantPosition(actualParentUnitId, vacantLevel, client);
 
       // Generate unit name
       const unitName = this.generateUnitName(owner.email, unitNumber);
 
       // Check if unit name already exists (shouldn't happen, but safety check)
-      const existingUnit = await tx.unit.findUnique({
+      const existingUnit = await client.unit.findUnique({
         where: {
           contractGameId_unitName: {
             contractGameId: contractGameId,
@@ -323,11 +336,22 @@ class PlacementService {
         throw new Error(`Unit with name ${unitName} already exists`);
       }
 
-      // Host ID is already determined above (finalHostId)
+      // Determine hostId for unit creation
+      // For mentors: hostId is admin ID (system root)
+      // For regular users: hostId is from parameter (mentor's choice)
+      let unitHostId = null;
+      if (isMentor) {
+        // For mentors, hostId should be admin ID (system root)
+        unitHostId = hostId || null; // Should be admin ID from processPlacement
+      } else {
+        // For regular users, use hostId from parameter
+        const finalHostId = hostId || mentorId;
+        unitHostId = finalHostId || null;
+      }
 
       // Create the unit
       // Use actualParentUnitId (which may be a child of targetActiveUnit if targetActiveUnit is full)
-      const unit = await tx.unit.create({
+      const unit = await client.unit.create({
         data: {
           contractGameId: contractGameId,
           ownerId: ownerId,
@@ -339,13 +363,13 @@ class PlacementService {
           positionInLevel: vacantPosition,
           isActive: false, // New units are not active by default
           isCompleted: false,
-          mentorId: mentorId || null, // Track which mentor placed this unit
-          hostId: finalHostId || null, // Track host relationship (mentor's choice)
+          mentorId: mentorId || null, // Track which mentor placed this unit (null for mentors)
+          hostId: unitHostId, // Admin ID for mentors (system root), mentor's choice for regular users
           isSystemRoot: false
         }
       });
 
-      logger.info(`Placed unit ${unitName} (${unitNumber}) for user ${ownerId} at level ${vacantLevel}, position ${vacantPosition}`);
+      logger.info(`Placed unit ${unitName} (${unitNumber}) for user ${ownerId} at level ${vacantLevel}, position ${vacantPosition}${isMentor ? ' (mentor - under system root)' : ''}`);
 
       return unit;
     };
