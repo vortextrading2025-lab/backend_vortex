@@ -169,6 +169,24 @@ const paginationMeta = (page, limit, total, totalPages) => ({
   }
 });
 
+/**
+ * Convenience wrapper for successResponse
+ */
+const sendResponse = (res, statusCode, data, message = 'Success', meta = null) => {
+  return successResponse(res, statusCode, message, data, meta);
+};
+
+/**
+ * Convenience wrapper for errorResponse that handles Error objects
+ */
+const sendError = (res, error, statusCode = null) => {
+  if (error instanceof Error) {
+    const code = statusCode || (error.statusCode || 400);
+    return errorResponse(res, code, error.message);
+  }
+  return errorResponse(res, statusCode || 400, error);
+};
+
 module.exports = {
   successResponse,
   errorResponse,
@@ -179,6 +197,8 @@ module.exports = {
   rateLimitErrorResponse,
   serverErrorResponse,
   databaseErrorResponse,
-  paginationMeta
+  paginationMeta,
+  sendResponse,
+  sendError,
 };
 

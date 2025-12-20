@@ -130,6 +130,16 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // IMPORTANT: Use the role from the database, not from the token
+    // This ensures that if a user's role changes, they don't need to re-login
+    // The token role is validated, but we use the database role for authorization
+    // This prevents "Insufficient permissions" errors when role is updated
+    
+    // Log role mismatch for debugging (token role vs database role)
+    if (validatedToken.role !== user.role) {
+      logger.warn(`Role mismatch detected: Token has role ${validatedToken.role}, but database has role ${user.role} for user ${user.email}. Using database role.`);
+    }
+
     // Only block SUSPENDED users - allow PENDING_VERIFICATION and INACTIVE
     // Rate limiting already handles abuse prevention
     if (user.status === 'SUSPENDED') {
@@ -220,10 +230,27 @@ const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    // Get the role from the database user object (not from token)
+    // This ensures role changes take effect immediately without re-login
+    const userRole = req.user.role;
+
+    // Flatten roles array in case it's nested (e.g., authorize(['VENDOR']) creates [['VENDOR']])
+    const flatRoles = roles.flat();
+
+    // Debug logging
+    logger.debug(`Authorization check: User ${req.user.id} (${req.user.email}) has role ${userRole}, required roles: ${flatRoles.join(', ')}`);
+
+    if (!flatRoles.includes(userRole)) {
+      logger.warn(`Authorization failed: User ${req.user.id} (${req.user.email}) with role ${userRole} attempted to access route requiring roles: ${flatRoles.join(', ')}`);
       return res.status(403).json({
         success: false,
-        message: 'Insufficient permissions'
+        message: 'Insufficient permissions',
+        details: {
+          userRole,
+          requiredRoles: flatRoles,
+          userId: req.user.id,
+          userEmail: req.user.email
+        }
       });
     }
 

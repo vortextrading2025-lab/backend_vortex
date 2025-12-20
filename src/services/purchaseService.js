@@ -107,7 +107,7 @@ class PurchaseService {
    * Create purchase request
    * Uses user's assigned mentor if available, otherwise auto-assigns one
    */
-  static async createPurchaseRequest(userId, contractGameId, unitCount = 4) {
+  static async createPurchaseRequest(userId, contractGameId, unitCount = 1) {
     // Validate unit count (minimum 1)
     if (unitCount < 1) {
       throw new Error('At least 1 unit is required');
@@ -126,29 +126,46 @@ class PurchaseService {
       throw new Error('Contract game is not active');
     }
 
-    // IMPORTANT: Check if user already has 4 units in this contract game
-    // Each user can only own 4 units per contract game
-    const existingUnitsCount = await database.getClient().unit.count({
+    // Check for active cooldown period
+    // Users cannot purchase more units if they have units in cooldown period (14 days from placement)
+    // During cooldown: user can play in contract but will NOT receive payouts until cooldown ends
+    // User can cancel and get refund during cooldown period
+    const activeCooldown = await database.getClient().purchaseRequest.findFirst({
       where: {
-        ownerId: userId,
-        contractGameId: contractGameId
+        userId: userId,
+        contractGameId: contractGameId,
+        status: 'PLACED',
+        cooldownEndsAt: {
+          gt: new Date() // Cooldown hasn't ended yet
+        },
+        refundedAt: null // Not refunded
+      },
+      orderBy: {
+        cooldownEndsAt: 'desc' // Get the most recent cooldown
+      },
+      select: {
+        cooldownEndsAt: true,
+        placedAt: true
       }
     });
 
-    if (existingUnitsCount >= 4) {
-      throw new Error(`You already own 4 units in this contract game. Each user can only own 4 units per contract game.`);
-    }
-
-    // For first purchase, minimum is 4 units
-    // For subsequent purchases, can buy remaining units (even if less than 4)
-    if (existingUnitsCount === 0 && unitCount < 4) {
-      throw new Error('Minimum 4 units required for first purchase in a contract game.');
-    }
-
-    // Check if adding new units would exceed the limit
-    if (existingUnitsCount + unitCount > 4) {
-      const remaining = 4 - existingUnitsCount;
-      throw new Error(`You can only purchase ${remaining} more unit(s) in this contract game. You already own ${existingUnitsCount} units. Maximum is 4 units per user per contract game.`);
+    if (activeCooldown) {
+      const cooldownEndsAt = new Date(activeCooldown.cooldownEndsAt);
+      const now = new Date();
+      const timeRemaining = cooldownEndsAt.getTime() - now.getTime();
+      const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
+      const hoursRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60));
+      
+      let timeMessage = '';
+      if (daysRemaining > 1) {
+        timeMessage = `${daysRemaining} days`;
+      } else if (hoursRemaining > 1) {
+        timeMessage = `${hoursRemaining} hours`;
+      } else {
+        timeMessage = 'less than an hour';
+      }
+      
+      throw new Error(`You are in a cooldown period. You cannot purchase more units until ${cooldownEndsAt.toLocaleString()}. Time remaining: ${timeMessage}. During cooldown, you can play in the contract but will not receive payouts. You can cancel and get a refund during this period.`);
     }
 
     // Calculate total amount
@@ -573,18 +590,69 @@ class PurchaseService {
       maxWait: 60000, // 60 seconds max wait for transaction to start
       timeout: 60000  // 60 seconds timeout for transaction to complete (BFS search can be slow)
     }).then(async (result) => {
-      // Check fulfillment after transaction completes (async, non-blocking)
-      // This prevents transaction timeout issues
-      Promise.all(
+      // Set cooldown period: 14 days from placement
+      await database.getClient().purchaseRequest.update({
+        where: { id: requestId },
+        data: {
+          cooldownEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days
+        }
+      });
+
+      // Enhanced fulfillment checking: Check ALL affected units in the tree
+      // This includes parent units and their ancestors
+      const FulfillmentService = require('./fulfillmentService');
+      
+      const checkAllAffectedUnits = async (unit) => {
+        const unitsToCheck = new Set();
+        
+        // Get parent chain (all ancestors)
+        let currentUnit = await database.getClient().unit.findUnique({
+          where: { id: unit.id },
+          select: { parentUnitId: true }
+        });
+        
+        while (currentUnit && currentUnit.parentUnitId) {
+          unitsToCheck.add(currentUnit.parentUnitId);
+          currentUnit = await database.getClient().unit.findUnique({
+            where: { id: currentUnit.parentUnitId },
+            select: { parentUnitId: true }
+          });
+        }
+        
+        // Also check siblings at same level (they might affect parent fulfillment)
+        const siblings = await database.getClient().unit.findMany({
+          where: {
+            parentUnitId: unit.parentUnitId,
+            level: unit.level,
+            id: { not: unit.id }
+          },
+          select: { id: true, parentUnitId: true }
+        });
+        
+        siblings.forEach(sibling => {
+          if (sibling.parentUnitId) {
+            unitsToCheck.add(sibling.parentUnitId);
+          }
+        });
+        
+        // Check fulfillment for all affected units
+        const checkPromises = Array.from(unitsToCheck).map(parentId => 
+          FulfillmentService.checkAndFulfillParent(parentId).catch(err => {
+            logger.error(`Error checking fulfillment for parent ${parentId}:`, err);
+          })
+        );
+        
+        await Promise.all(checkPromises);
+      };
+      
+      // Check fulfillment for each placed unit and all affected units
+      await Promise.all(
         result.units.map(unit => 
-          FulfillmentService.checkFulfillmentAfterPlacement(unit.id).catch(err => {
+          checkAllAffectedUnits(unit).catch(err => {
             logger.error(`Error checking fulfillment for unit ${unit.id}:`, err);
-            // Don't fail the whole operation if fulfillment check fails
           })
         )
-      ).catch(err => {
-        logger.error('Error in fulfillment checks:', err);
-      });
+      );
       
       return result;
     });

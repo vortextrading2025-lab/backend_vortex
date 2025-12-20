@@ -25,7 +25,10 @@ class RedisClient {
         // Redis not configured - return null silently (fallback to database)
         return null;
       }
-      return await this.redis.get(key);
+      const result = await this.redis.get(key);
+      // Upstash Redis automatically parses JSON, so result might already be an object
+      // Return as-is - caller should handle both string and object cases
+      return result;
     } catch (error) {
       // Log warning instead of error since we have database fallback
       console.warn('Redis GET error (falling back to database):', error.message);

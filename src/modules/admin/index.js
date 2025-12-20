@@ -836,6 +836,28 @@ router.delete('/sessions/:sessionId', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/payouts/release-held
+ * Manually trigger release of held payouts (for testing or manual processing)
+ */
+router.post('/payouts/release-held', async (req, res) => {
+  try {
+    const PayoutReleaseService = require('../../services/payoutReleaseService');
+    const result = await PayoutReleaseService.releaseHeldPayouts();
+    
+    res.json({
+      success: true,
+      message: `Released ${result.released} held payouts`,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // Helper function to get client info
 const getClientInfo = (req) => {
   const userAgent = req.get('User-Agent') || '';

@@ -8,6 +8,13 @@ class Database {
         db: {
           url: process.env.DATABASE_URL
         }
+      },
+      // Add connection pooling optimization
+      __internal: {
+        engine: {
+          connectTimeout: 10000,
+          queryTimeout: 20000,
+        }
       }
     });
   }
@@ -35,6 +42,9 @@ class Database {
   }
 
   getClient() {
+    if (!this.prisma) {
+      throw new Error('Database client not initialized. PrismaClient is undefined.');
+    }
     return this.prisma;
   }
 }

@@ -1,5 +1,6 @@
 const database = require('../config/database');
 const logger = require('../modules/logging/logger');
+const redisClient = require('../config/redis');
 
 /**
  * ContractGameService
@@ -291,10 +292,153 @@ class ContractGameService {
   }
 
   /**
+   * Get contract game statistics for multiple games (batch optimized)
+   */
+  static async getContractGameStatsBatch(gameIds) {
+    try {
+      if (gameIds.length === 0) return {};
+      
+      const [
+        unitCounts,
+        activeUnitCounts,
+        completedUnitCounts,
+        payoutSums,
+        pendingRequestCounts,
+        approvedRequestCounts,
+        placedRequestCounts
+      ] = await Promise.all([
+        // Total units per game
+        database.getClient().unit.groupBy({
+          by: ['contractGameId'],
+          where: { contractGameId: { in: gameIds } },
+          _count: { id: true }
+        }),
+        // Active units per game
+        database.getClient().unit.groupBy({
+          by: ['contractGameId'],
+          where: {
+            contractGameId: { in: gameIds },
+            isActive: true,
+            isCompleted: false
+          },
+          _count: { id: true }
+        }),
+        // Completed units per game
+        database.getClient().unit.groupBy({
+          by: ['contractGameId'],
+          where: {
+            contractGameId: { in: gameIds },
+            isCompleted: true
+          },
+          _count: { id: true }
+        }),
+        // Total payouts per game
+        database.getClient().payout.groupBy({
+          by: ['unit'],
+          where: {
+            unit: {
+              contractGameId: { in: gameIds }
+            },
+            status: 'CREDITED'
+          },
+          _sum: { amount: true }
+        }).then(async (results) => {
+          // Need to get contractGameId from unit
+          const unitIds = results.map(r => r.unit);
+          const units = await database.getClient().unit.findMany({
+            where: { id: { in: unitIds } },
+            select: { id: true, contractGameId: true }
+          });
+          const unitGameMap = new Map(units.map(u => [u.id, u.contractGameId]));
+          const gamePayouts = {};
+          results.forEach(r => {
+            const gameId = unitGameMap.get(r.unit);
+            if (gameId) {
+              gamePayouts[gameId] = (gamePayouts[gameId] || 0) + Number(r._sum.amount || 0);
+            }
+          });
+          return gamePayouts;
+        }),
+        // Pending requests per game
+        database.getClient().purchaseRequest.groupBy({
+          by: ['contractGameId'],
+          where: {
+            contractGameId: { in: gameIds },
+            status: 'PENDING'
+          },
+          _count: { id: true }
+        }),
+        // Approved requests per game
+        database.getClient().purchaseRequest.groupBy({
+          by: ['contractGameId'],
+          where: {
+            contractGameId: { in: gameIds },
+            status: 'APPROVED'
+          },
+          _count: { id: true }
+        }),
+        // Placed requests per game
+        database.getClient().purchaseRequest.groupBy({
+          by: ['contractGameId'],
+          where: {
+            contractGameId: { in: gameIds },
+            status: 'PLACED'
+          },
+          _count: { id: true }
+        })
+      ]);
+
+      // Create lookup maps
+      const unitCountMap = new Map(unitCounts.map(item => [item.contractGameId, item._count.id]));
+      const activeUnitCountMap = new Map(activeUnitCounts.map(item => [item.contractGameId, item._count.id]));
+      const completedUnitCountMap = new Map(completedUnitCounts.map(item => [item.contractGameId, item._count.id]));
+      const pendingRequestCountMap = new Map(pendingRequestCounts.map(item => [item.contractGameId, item._count.id]));
+      const approvedRequestCountMap = new Map(approvedRequestCounts.map(item => [item.contractGameId, item._count.id]));
+      const placedRequestCountMap = new Map(placedRequestCounts.map(item => [item.contractGameId, item._count.id]));
+
+      // Build stats object for each game
+      const statsMap = {};
+      gameIds.forEach(gameId => {
+        statsMap[gameId] = {
+          totalUnits: unitCountMap.get(gameId) || 0,
+          activeUnits: activeUnitCountMap.get(gameId) || 0,
+          completedUnits: completedUnitCountMap.get(gameId) || 0,
+          totalPayouts: payoutSums[gameId] || 0,
+          pendingRequests: pendingRequestCountMap.get(gameId) || 0,
+          approvedRequests: approvedRequestCountMap.get(gameId) || 0,
+          placedRequests: placedRequestCountMap.get(gameId) || 0
+        };
+      });
+
+      return statsMap;
+    } catch (error) {
+      logger.error(`Error getting batch contract game stats:`, error);
+      return {};
+    }
+  }
+
+  /**
    * List contract games with optional status filter
    */
   static async listContractGames(status = null) {
     try {
+      // Try to get from cache first
+      const cacheKey = `contract_games:${status || 'all'}`;
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        // Handle case where cached data might already be an object (from some Redis clients)
+        if (typeof cached === 'object') {
+          return cached;
+        }
+        // Parse JSON string
+        try {
+          return JSON.parse(cached);
+        } catch (parseError) {
+          logger.warn(`Failed to parse cached contract games: ${parseError.message}`);
+          // If parsing fails, continue to fetch from database
+        }
+      }
+
       const where = status ? { status: status } : {};
 
       const contractGames = await database.getClient().contractGame.findMany({
@@ -320,25 +464,34 @@ class ContractGameService {
         }
       });
 
-      // Get stats for each game and convert Decimal to numbers
-      const gamesWithStats = await Promise.all(
-        contractGames.map(async (game) => {
-          const stats = await this.getContractGameStats(game.id);
-          return {
-            ...game,
-            downPayment: Number(game.downPayment),
-            payoutStage1: Number(game.payoutStage1),
-            payoutStage2: Number(game.payoutStage2),
-            payoutStage3: Number(game.payoutStage3),
-            stats: stats
-          };
-        })
-      );
+      // Batch get stats for all games at once
+      const gameIds = contractGames.map(game => game.id);
+      const statsMap = await this.getContractGameStatsBatch(gameIds);
 
+      // Combine games with their stats
+      const gamesWithStats = contractGames.map((game) => ({
+        ...game,
+        downPayment: Number(game.downPayment),
+        payoutStage1: Number(game.payoutStage1),
+        payoutStage2: Number(game.payoutStage2),
+        payoutStage3: Number(game.payoutStage3),
+        stats: statsMap[game.id] || {
+          totalUnits: 0,
+          activeUnits: 0,
+          completedUnits: 0,
+          totalPayouts: 0,
+          pendingRequests: 0,
+          approvedRequests: 0,
+          placedRequests: 0
+        }
+      }));
+
+      // Cache for 5 minutes
+      await redisClient.set(cacheKey, JSON.stringify(gamesWithStats), 300);
+      
       return gamesWithStats;
     } catch (error) {
       logger.error('Error listing contract games:', error);
-      // If database connection fails, return empty array instead of crashing
       if (error.message && error.message.includes("Can't reach database server")) {
         logger.warn('Database connection failed, returning empty array');
         return [];

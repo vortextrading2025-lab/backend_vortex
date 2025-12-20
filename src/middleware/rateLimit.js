@@ -2,10 +2,10 @@ const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
 const redisClient = require('../config/redis');
 
-// General rate limiting
+// General rate limiting (increased for development)
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 10000, // limit each IP to 10000 requests per windowMs (increased for development)
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
@@ -51,15 +51,15 @@ const passwordResetLimiter = rateLimit({
   }
 });
 
-// API rate limiting based on user
+// API rate limiting based on user (increased for development)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: (req) => {
-    // Different limits based on user role
-    if (req.user?.role === 'ADMIN') return 1000;
-    if (req.user?.role === 'MENTOR') return 500;
-    if (req.user?.role === 'VENDOR') return 200;
-    return 100; // Default for regular users
+    // Different limits based on user role (increased for development)
+    if (req.user?.role === 'ADMIN') return 10000;
+    if (req.user?.role === 'MENTOR') return 5000;
+    if (req.user?.role === 'VENDOR') return 2000;
+    return 5000; // Default for regular users (increased for development)
   },
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise IP

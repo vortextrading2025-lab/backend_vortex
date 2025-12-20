@@ -8,45 +8,51 @@ datasource db {
 }
 
 model User {
-  id                   String            @id @default(cuid())
-  email                String            @unique
-  username             String?           @unique
-  password             String
-  firstName            String?
-  lastName             String?
-  phone                String?
-  avatar               String?
-  role                 UserRole          @default(USER)
-  status               UserStatus        @default(PENDING_VERIFICATION)
-  emailVerified        Boolean           @default(false)
-  phoneVerified        Boolean           @default(false)
-  lastLoginAt          DateTime?
-  lastLoginIp          String?
-  lastLoginUserAgent   String?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  mentorId             String?
-  auditLogs            AuditLog[]
-  createdContractGames ContractGame[]    @relation("CreatedContractGames")
-  hostedContracts      Contract[]        @relation("ContractHost")
-  ownedContracts       Contract[]        @relation("ContractOwner")
-  invitedBy            InviteLink?       @relation("InvitedUsers")
-  inviteLinks          InviteLink[]      @relation("InviteLinks")
-  mentorProfile        MentorProfile?
-  payouts              Payout[]
-  mentorRequests       PurchaseRequest[] @relation("MentorPurchaseRequests")
-  purchaseRequests     PurchaseRequest[] @relation("UserPurchaseRequests")
+  id                     String            @id @default(cuid())
+  email                  String            @unique
+  username               String?           @unique
+  password               String
+  firstName              String?
+  lastName               String?
+  phone                  String?
+  avatar                 String?
+  role                   UserRole          @default(USER)
+  status                 UserStatus        @default(PENDING_VERIFICATION)
+  emailVerified          Boolean           @default(false)
+  phoneVerified          Boolean           @default(false)
+  lastLoginAt            DateTime?
+  lastLoginIp            String?
+  lastLoginUserAgent     String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  mentorId               String?
+  auditLogs              AuditLog[]
+  createdContractGames   ContractGame[]    @relation("CreatedContractGames")
+  hostedContracts        Contract[]        @relation("ContractHost")
+  ownedContracts         Contract[]        @relation("ContractOwner")
+  invitedBy              InviteLink?       @relation("InvitedUsers")
+  inviteLinks            InviteLink[]      @relation("InviteLinks")
+  mentorProfile          MentorProfile?
+  payouts                Payout[]
+  mentorRequests         PurchaseRequest[] @relation("MentorPurchaseRequests")
+  purchaseRequests       PurchaseRequest[] @relation("UserPurchaseRequests")
   hostedPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestHost")
-  refreshTokens        RefreshToken[]
-  sessions             Session[]
-  hostedUnits          Unit[]            @relation("UnitHost")
-  mentoredUnits        Unit[]            @relation("UnitMentor")
-  ownedUnits           Unit[]
-  permissions          UserPermission[]
-  mentor               User?             @relation("UserMentor", fields: [mentorId], references: [id])
-  mentees              User[]            @relation("UserMentor")
-  vendorProfile        VendorProfile?
-  wallet               Wallet?
+  refreshTokens          RefreshToken[]
+  sessions               Session[]
+  hostedUnits            Unit[]            @relation("UnitHost")
+  mentoredUnits          Unit[]            @relation("UnitMentor")
+  ownedUnits             Unit[]
+  permissions            UserPermission[]
+  mentor                 User?             @relation("UserMentor", fields: [mentorId], references: [id])
+  mentees                User[]            @relation("UserMentor")
+  vendorProfile          VendorProfile?
+  wallet                 Wallet?
+  products               Product[]
+  orders                 Order[]
+  vendorOrders           Order[]           @relation("VendorOrders")
+  settlements            Settlement[]
+  cartItems              CartItem[]
+  wishlistItems          WishlistItem[]
 
   @@map("users")
 }
@@ -256,7 +262,7 @@ model PurchaseRequest {
   id             String                @id @default(cuid())
   userId         String
   mentorId       String
-  hostId         String?               // Host selected by mentor during approval
+  hostId         String? // Host selected by mentor during approval
   contractGameId String
   unitCount      Int                   @default(4)
   totalAmount    Decimal               @db.Decimal(10, 2)
@@ -265,6 +271,8 @@ model PurchaseRequest {
   updatedAt      DateTime              @updatedAt
   approvedAt     DateTime?
   placedAt       DateTime?
+  cooldownEndsAt DateTime? // NEW: 14 days from placedAt
+  refundedAt     DateTime? // NEW: When refund was processed
   contractGame   ContractGame          @relation(fields: [contractGameId], references: [id], onDelete: Cascade)
   mentor         User                  @relation("MentorPurchaseRequests", fields: [mentorId], references: [id], onDelete: Cascade)
   user           User                  @relation("UserPurchaseRequests", fields: [userId], references: [id], onDelete: Cascade)
@@ -275,6 +283,7 @@ model PurchaseRequest {
   @@index([contractGameId])
   @@index([status])
   @@index([hostId])
+  @@index([cooldownEndsAt]) // NEW: For querying active cooldowns
   @@map("purchase_requests")
 }
 
@@ -285,6 +294,7 @@ model Payout {
   status     String    @default("PENDING")
   createdAt  DateTime  @default(now())
   creditedAt DateTime?
+  heldUntil  DateTime? // NEW: Payout held until cooldown ends
   unitId     String
   walletId   String?
   stage      Int
@@ -295,6 +305,7 @@ model Payout {
   @@index([unitId])
   @@index([status])
   @@index([walletId])
+  @@index([heldUntil]) // NEW: For querying held payouts
   @@map("payouts")
 }
 
@@ -471,4 +482,182 @@ enum PurchaseRequestStatus {
   APPROVED
   REJECTED
   PLACED
+}
+
+enum OrderStatus {
+  PENDING_VENDOR_APPROVAL
+  ACCEPTED
+  REJECTED
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum SettlementStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String?
+  slug          String        @unique
+  image         String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  subcategories Subcategory[]
+  products      Product[]
+
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Subcategory {
+  id          String    @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?
+  slug        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("subcategories")
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  vendorId      String
+  categoryId    String
+  subcategoryId String
+  name          String
+  description   String?
+  price         Decimal        @db.Decimal(10, 2)
+  currency      String         @default("CAD")
+  stock         Int            @default(0)
+  images        String[] // Array of 5 image URLs
+  sku           String?        @unique
+  attributes    Json? // Category-specific attributes (brand, color, size, etc.)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  vendor        User           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategory   Subcategory    @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([isActive])
+  @@index([sku])
+  @@map("products")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  vendorId        String
+  orderNumber     String      @unique
+  totalAmount     Decimal     @db.Decimal(10, 2)
+  currency        String      @default("CAD")
+  status          OrderStatus @default(PENDING_VENDOR_APPROVAL)
+  shippingAddress Json? // Full address object
+  shippingName    String?
+  shippingPhone   String?
+  notes           String?
+  confirmedAt     DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendor          User        @relation("VendorOrders", fields: [vendorId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+  settlement      Settlement?
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2) // Price at time of order
+  subtotal  Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Settlement {
+  id        String           @id @default(cuid())
+  vendorId  String
+  orderId   String           @unique
+  amount    Decimal          @db.Decimal(10, 2)
+  currency  String           @default("CAD")
+  status    SettlementStatus @default(PENDING)
+  settledAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  vendor    User             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  order     Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("settlements")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("wishlist_items")
 }

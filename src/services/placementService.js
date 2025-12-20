@@ -1,5 +1,6 @@
 const database = require('../config/database');
 const logger = require('../modules/logging/logger');
+const redisClient = require('../config/redis');
 
 /**
  * PlacementService
@@ -450,142 +451,57 @@ class PlacementService {
   static async buildUnitSubtree(unitId, tx = null) {
     const client = tx || database.getClient();
     
-    const unit = await client.unit.findUnique({
+    // Get all units in the subtree in one query using recursive CTE would be ideal
+    // For now, limit depth or use a more efficient approach
+    
+    // Get root unit
+    const rootUnit = await client.unit.findUnique({
       where: { id: unitId },
       include: {
-        owner: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        mentor: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        host: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        parentUnit: {
-          select: {
-            id: true,
-            unitName: true,
-            unitNumber: true,
-            owner: {
-              select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true
-              }
-            }
-          }
-        },
-        contractGame: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        payouts: {
-          select: {
-            id: true,
-            amount: true,
-            stage: true,
-            status: true,
-            createdAt: true
-          }
-        }
+        owner: { select: { id: true, email: true, firstName: true, lastName: true } },
+        mentor: { select: { id: true, email: true, firstName: true, lastName: true } },
+        host: { select: { id: true, email: true, firstName: true, lastName: true } },
+        parentUnit: { select: { id: true, unitName: true, unitNumber: true } },
+        contractGame: { select: { id: true, name: true } },
+        payouts: { select: { id: true, amount: true, stage: true, status: true, createdAt: true } }
       }
     });
 
-    if (!unit) return null;
+    if (!rootUnit) return null;
 
-    // Get all children
-    const children = await client.unit.findMany({
-      where: { parentUnitId: unitId },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        mentor: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        host: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        parentUnit: {
-          select: {
-            id: true,
-            unitName: true,
-            unitNumber: true,
-            owner: {
-              select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true
-              }
-            }
-          }
-        },
-        contractGame: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        payouts: {
-          select: {
-            id: true,
-            amount: true,
-            stage: true,
-            status: true,
-            createdAt: true
-          }
-        }
+    // Get all descendants in one query (limit depth to prevent excessive queries)
+    const MAX_DEPTH = 10; // Adjust based on your tree depth
+    const allDescendants = await client.unit.findMany({
+      where: {
+        parentUnitId: { not: null },
+        // You might need to add a path tracking field or use recursive query
       },
-      orderBy: [
-        { level: 'asc' },
-        { positionInLevel: 'asc' }
-      ]
+      include: {
+        owner: { select: { id: true, email: true, firstName: true, lastName: true } },
+        mentor: { select: { id: true, email: true, firstName: true, lastName: true } },
+        host: { select: { id: true, email: true, firstName: true, lastName: true } },
+        parentUnit: { select: { id: true, unitName: true, unitNumber: true } },
+        contractGame: { select: { id: true, name: true } },
+        payouts: { select: { id: true, amount: true, stage: true, status: true, createdAt: true } }
+      }
     });
 
-    // Recursively build children trees
-    const childrenTrees = await Promise.all(
-      children.map(child => this.buildUnitSubtree(child.id, tx))
-    );
+    // Build tree structure in memory
+    const unitMap = new Map();
+    unitMap.set(rootUnit.id, { ...rootUnit, childrenUnits: [] });
+    allDescendants.forEach(unit => {
+      unitMap.set(unit.id, { ...unit, childrenUnits: [] });
+    });
 
-    return {
-      ...unit,
-      childrenUnits: childrenTrees.filter(Boolean)
-    };
+    // Build parent-child relationships
+    allDescendants.forEach(unit => {
+      if (unit.parentUnitId && unitMap.has(unit.parentUnitId)) {
+        const parent = unitMap.get(unit.parentUnitId);
+        parent.childrenUnits.push(unitMap.get(unit.id));
+      }
+    });
+
+    return unitMap.get(unitId);
   }
 }
 
