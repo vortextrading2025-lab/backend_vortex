@@ -4,27 +4,29 @@
 
 ### 1. Database Schema
 - ✅ **ContractGame** model - Admin-created games with configurable payouts
-- ✅ **Unit** model - Individual units with tree structure (4 units per level)
+- ✅ **Unit** model - Individual units with tree structure (binary tree: 2 children per parent)
 - ✅ **PurchaseRequest** model - User requests with mentor approval workflow
 - ✅ **System Root Units** - Each game has 3 root units (one per stage)
 - ✅ **Host/Mentor Tracking** - Units track which mentor placed them and which host sponsored them
+- ✅ **14-Day Cooldown Period** - Users can cancel and get refund within 14 days of purchase
 
 ### 2. Core Services
 
 #### PlacementService
 - ✅ 5-step placement algorithm
-- ✅ Odd units → mentor's active unit (or system root)
-- ✅ Even units → user's own active unit (or system root)
-- ✅ Left-to-right level search (max 4 units per level)
-- ✅ Bottom-to-top position search (positions 1-4)
+- ✅ Odd units → HOST's active unit (or system root)
+- ✅ Even units → OWNER's (user's) own active unit (or system root)
+- ✅ Left-to-right level search (binary tree: max 2 children per parent)
+- ✅ Bottom-to-top position search (positions 1-2)
 - ✅ System root fallback for first placements
 
 #### FulfillmentService
-- ✅ Stage 1: Completes when next 3 levels filled (14 units)
-- ✅ Stage 2/3: Completes when next 2 levels filled (6 units)
-- ✅ Active unit stays active until 4th/3rd level has 4 units
+- ✅ Stage 1: Completes when next 3 levels filled (14 units: 2+4+6+2)
+- ✅ Stage 2/3: Completes when next 2 levels filled (6 units: 2+4)
+- ✅ Active unit stays active until 4th/3rd level has 2 units (binary tree)
 - ✅ Automatic payout creation and wallet crediting
 - ✅ Cascade fulfillment checking
+- ✅ **Automatic fulfillment check after each unit placement**
 
 #### PurchaseService
 - ✅ Auto-assign mentors (least busy)

@@ -58,9 +58,9 @@ class WalletService {
   }
 
   /**
-   * Deduct amount from wallet (for contract purchases)
+   * Deduct amount from wallet (for contract purchases or orders)
    */
-  static async deductFromWallet(userId, amount, referenceId = null, description = null) {
+  static async deductFromWallet(userId, amount, referenceId = null, description = null, referenceType = 'CONTRACT') {
     const wallet = await this.getWallet(userId);
 
     if (wallet.balance < amount) {
@@ -79,16 +79,16 @@ class WalletService {
       data: {
         walletId: wallet.id,
         userId: userId,
-        type: 'CONTRACT_PURCHASE',
+        type: referenceType === 'ORDER' ? 'ORDER_PAYMENT' : 'CONTRACT_PURCHASE',
         amount: -amount, // Negative for deduction
         status: 'COMPLETED',
         referenceId: referenceId,
-        referenceType: 'CONTRACT',
-        description: description || `Contract purchase`
+        referenceType: referenceType,
+        description: description || (referenceType === 'ORDER' ? 'Order payment' : 'Contract purchase')
       }
     });
 
-    logger.info(`Deducted ${amount} from wallet for user ${userId}`);
+    logger.info(`Deducted ${amount} from wallet for user ${userId} (${referenceType})`);
     return updatedWallet;
   }
 

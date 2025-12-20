@@ -281,6 +281,34 @@ class FulfillmentService {
         data: updateData
       });
 
+      // Check if unit is in cooldown period
+      // Find the purchase request that created this unit (by checking creation time and owner)
+      const purchaseRequest = await tx.purchaseRequest.findFirst({
+        where: {
+          userId: unit.ownerId,
+          contractGameId: unit.contractGameId,
+          status: 'PLACED',
+          placedAt: {
+            lte: unit.createdAt,
+            gte: new Date(unit.createdAt.getTime() - 60000) // Within 1 minute of unit creation
+          }
+        },
+        orderBy: { placedAt: 'desc' }
+      });
+
+      // Determine if payout should be held (if cooldown hasn't ended)
+      let heldUntil = null;
+      let payoutStatus = 'PENDING';
+      
+      if (purchaseRequest && purchaseRequest.cooldownEndsAt) {
+        const now = new Date();
+        if (now < purchaseRequest.cooldownEndsAt) {
+          // Still in cooldown - hold the payout
+          heldUntil = purchaseRequest.cooldownEndsAt;
+          payoutStatus = 'HELD';
+        }
+      }
+
       // Create payout record
       const payout = await tx.payout.create({
         data: {
@@ -289,7 +317,8 @@ class FulfillmentService {
           walletId: null, // set after wallet upsert (outside transaction)
           amount: payoutAmount,
           stage: unit.stage,
-          status: 'PENDING'
+          status: payoutStatus,
+          heldUntil: heldUntil
         }
       });
 
@@ -304,7 +333,7 @@ class FulfillmentService {
         }
       });
 
-      return { updatedUnit, payoutId: payout.id, payoutAmount, parentUnitId };
+      return { updatedUnit, payoutId: payout.id, payoutAmount, parentUnitId, isHeld: !!heldUntil };
     }, {
       timeout: 20000 // increase timeout to allow core fulfillment
     });
@@ -317,7 +346,16 @@ class FulfillmentService {
       return null;
     }
     
-    if (payoutId && payoutAmount > 0) {
+    // Check if payout is held (in cooldown period)
+    const payout = await client.payout.findUnique({
+      where: { id: payoutId },
+      select: { status: true, heldUntil: true }
+    });
+
+    const isHeld = payout && payout.status === 'HELD' && payout.heldUntil;
+    
+    // Only credit wallet if payout is NOT held (cooldown has ended or no cooldown)
+    if (payoutId && payoutAmount > 0 && !isHeld) {
       const wallet = await client.wallet.upsert({
         where: { userId: updatedUnit.ownerId },
         update: {},
@@ -369,8 +407,12 @@ class FulfillmentService {
 
     // Enhanced logging with owner information
     const ownerEmail = updatedUnit.owner?.email || updatedUnit.ownerId;
-    logger.info(`Unit ${updatedUnit.unitName} (${updatedUnit.unitNumber}) fulfilled in stage ${updatedUnit.stage}, payout: $${payoutAmount} to owner ${ownerEmail}`);
-    logger.info(`Earnings added to wallet for ${ownerEmail}: $${payoutAmount} (Total payout for Stage ${updatedUnit.stage})`);
+    if (isHeld) {
+      logger.info(`Unit ${updatedUnit.unitName} (${updatedUnit.unitNumber}) fulfilled in stage ${updatedUnit.stage}, payout: $${payoutAmount} HELD until cooldown ends for owner ${ownerEmail}`);
+    } else {
+      logger.info(`Unit ${updatedUnit.unitName} (${updatedUnit.unitNumber}) fulfilled in stage ${updatedUnit.stage}, payout: $${payoutAmount} to owner ${ownerEmail}`);
+      logger.info(`Earnings added to wallet for ${ownerEmail}: $${payoutAmount} (Total payout for Stage ${updatedUnit.stage})`);
+    }
 
     // Activate next unit for user if available (outside transaction to avoid timeout)
     setImmediate(async () => {

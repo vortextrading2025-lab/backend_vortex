@@ -210,41 +210,60 @@ router.get('/mentees', async (req, res) => {
     // Get mentee IDs for batch queries
     const menteeIds = mentees.map(m => m.id);
 
+    // If no mentees, return empty array with empty stats
+    if (menteeIds.length === 0) {
+      return successResponse(res, 200, 'Mentees retrieved successfully', []);
+    }
+
     // Batch query: Get all stats in 3 queries instead of 3*N queries
-    const [purchaseRequestCounts, unitCounts, activeUnitCounts] = await Promise.all([
-      // Get purchase request counts for all mentees
-      database.getClient().purchaseRequest.groupBy({
-        by: ['userId'],
-        where: {
-          userId: { in: menteeIds },
-          mentorId: mentorId
-        },
-        _count: {
-          id: true
-        }
-      }),
-      // Get total unit counts for all mentees
-      database.getClient().unit.groupBy({
-        by: ['ownerId'],
-        where: {
-          ownerId: { in: menteeIds }
-        },
-        _count: {
-          id: true
-        }
-      }),
-      // Get active unit counts for all mentees
-      database.getClient().unit.groupBy({
-        by: ['ownerId'],
-        where: {
-          ownerId: { in: menteeIds },
-          isActive: true
-        },
-        _count: {
-          id: true
-        }
-      })
-    ]);
+    // Only run if we have mentees to avoid empty array issues
+    let purchaseRequestCounts = [];
+    let unitCounts = [];
+    let activeUnitCounts = [];
+
+    try {
+      [purchaseRequestCounts, unitCounts, activeUnitCounts] = await Promise.all([
+        // Get purchase request counts for all mentees
+        database.getClient().purchaseRequest.groupBy({
+          by: ['userId'],
+          where: {
+            userId: { in: menteeIds },
+            mentorId: mentorId
+          },
+          _count: {
+            id: true
+          }
+        }),
+        // Get total unit counts for all mentees
+        database.getClient().unit.groupBy({
+          by: ['ownerId'],
+          where: {
+            ownerId: { in: menteeIds }
+          },
+          _count: {
+            id: true
+          }
+        }),
+        // Get active unit counts for all mentees
+        database.getClient().unit.groupBy({
+          by: ['ownerId'],
+          where: {
+            ownerId: { in: menteeIds },
+            isActive: true
+          },
+          _count: {
+            id: true
+          }
+        })
+      ]);
+    } catch (dbError) {
+      // If database connection fails, log error and return mentees with zero stats
+      logger.error('Database error fetching mentee stats:', dbError);
+      // Continue with empty stats arrays - mentees will have 0 for all stats
+      purchaseRequestCounts = [];
+      unitCounts = [];
+      activeUnitCounts = [];
+    }
 
     // Create lookup maps for O(1) access
     const requestCountMap = new Map(

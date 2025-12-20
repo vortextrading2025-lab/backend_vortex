@@ -16,7 +16,7 @@ router.use(authenticate);
 // Validation schemas
 const purchaseRequestSchema = z.object({
   contractGameId: z.string().min(1, 'Contract game ID is required'),
-  unitCount: z.number().int().min(1, 'At least 1 unit is required').max(4, 'Maximum 4 units per purchase')
+  unitCount: z.number().int().min(1, 'At least 1 unit is required')
 });
 
 /**
@@ -268,6 +268,25 @@ router.get('/my-requests', async (req, res) => {
   } catch (error) {
     logger.error('Error getting user purchase requests:', error);
     return errorResponse(res, 500, error.message);
+  }
+});
+
+/**
+ * POST /api/units/purchase-requests/:id/refund
+ * Request to refund a purchase request
+ */
+router.post('/purchase-requests/:id/refund', authenticate, async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    const userId = req.user.id;
+    
+    const RefundService = require('../../services/refundService');
+    const result = await RefundService.processRefund(requestId, userId);
+    
+    return successResponse(res, 200, 'Refund processed successfully', result);
+  } catch (error) {
+    logger.error('Error processing refund:', error);
+    return errorResponse(res, 400, error.message);
   }
 });
 

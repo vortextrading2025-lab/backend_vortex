@@ -38,8 +38,10 @@ router.get('/contract-games/:id', optionalAuth, async (req, res) => {
       return errorResponse(res, 404, 'Contract game not found');
     }
 
-    // If user is authenticated, add their unit count for this game
+    // If user is authenticated, add their unit count and cooldown status for this game
     let userUnitCount = 0;
+    let isInCooldown = false;
+    let cooldownEndsAt = null;
     if (req.user && req.user.id) {
       try {
         userUnitCount = await database.getClient().unit.count({
@@ -48,16 +50,42 @@ router.get('/contract-games/:id', optionalAuth, async (req, res) => {
             contractGameId: req.params.id
           }
         });
+
+        // Check for active cooldown
+        const activeCooldown = await database.getClient().purchaseRequest.findFirst({
+          where: {
+            userId: req.user.id,
+            contractGameId: req.params.id,
+            status: 'PLACED',
+            cooldownEndsAt: {
+              gt: new Date()
+            },
+            refundedAt: null
+          },
+          orderBy: {
+            cooldownEndsAt: 'desc'
+          },
+          select: {
+            cooldownEndsAt: true
+          }
+        });
+
+        if (activeCooldown) {
+          isInCooldown = true;
+          cooldownEndsAt = activeCooldown.cooldownEndsAt;
+        }
       } catch (err) {
-        // Ignore errors, just use 0
-        logger.warn(`Error getting user unit count: ${err.message}`);
+        // Ignore errors, just use defaults
+        logger.warn(`Error getting user unit count/cooldown: ${err.message}`);
       }
     }
 
     return successResponse(res, 200, 'Contract game retrieved successfully', {
       ...contractGame,
       userUnitCount: userUnitCount,
-      canPurchaseMore: userUnitCount < 4
+      canPurchaseMore: !isInCooldown, // Can purchase if not in cooldown
+      isInCooldown: isInCooldown,
+      cooldownEndsAt: cooldownEndsAt
     });
   } catch (error) {
     logger.error('Error getting contract game:', error);

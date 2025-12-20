@@ -176,8 +176,20 @@ app.use('/api/admin', adminModule.router);
 app.use('/api/contracts', contractModule.router);
 app.use('/api/mentor', require('./modules/mentor').router);
 app.use('/api/units', require('./modules/user/units').router);
-app.use('/api', require('./modules/shared/units').router);
 app.use('/api/wallet', require('./modules/wallet').router);
+// Product and order routes (must come before catch-all /api route)
+// IMPORTANT: More specific routes must come BEFORE less specific ones
+app.use('/api/vendor/products', require('./modules/vendor/products').router);
+app.use('/api/vendor/orders', require('./modules/orders').router);
+app.use('/api/vendor/settlements', require('./modules/orders').router);
+app.use('/api/user/orders', require('./modules/user/orders').router);
+app.use('/api/products', require('./modules/products').router);
+app.use('/api/orders', require('./modules/orders').router);
+// Cart and wishlist routes
+app.use('/api/cart', require('./modules/cart').router);
+app.use('/api/wishlist', require('./modules/wishlist').router);
+// Catch-all /api route (must come last to avoid conflicts)
+app.use('/api', require('./modules/shared/units').router);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -191,6 +203,32 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
+
+// Setup scheduled tasks for payout release
+// Release held payouts every hour (after cooldown ends)
+const PayoutReleaseService = require('./services/payoutReleaseService');
+setInterval(async () => {
+  try {
+    const result = await PayoutReleaseService.releaseHeldPayouts();
+    if (result.released > 0) {
+      console.log(`✅ Released ${result.released} held payouts`);
+    }
+  } catch (error) {
+    console.error('❌ Error releasing held payouts:', error);
+  }
+}, 60 * 60 * 1000); // Every hour
+
+// Also run immediately on startup (to catch any missed payouts)
+setImmediate(async () => {
+  try {
+    const result = await PayoutReleaseService.releaseHeldPayouts();
+    if (result.released > 0) {
+      console.log(`✅ Released ${result.released} held payouts on startup`);
+    }
+  } catch (error) {
+    console.error('❌ Error releasing held payouts on startup:', error);
+  }
+});
 
 // Store server instance for error handling and graceful shutdown
 const server = app.listen(PORT, () => {
