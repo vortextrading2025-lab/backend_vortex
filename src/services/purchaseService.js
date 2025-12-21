@@ -545,25 +545,27 @@ class PurchaseService {
 
           placedUnits.push(unit);
 
-          // If this is the first unit (should be odd, e.g., 101), activate it
-          // This makes it the user's active unit for subsequent even-numbered units
-          if (i === 0) {
+          // IMPORTANT: Only activate the FIRST unit (101) for the user
+          // This ensures even units (102, 104) can be placed under 101
+          // Unit 103 should NOT be activated
+          if (i === 0 && unitNumber % 2 === 1) {
+            // First unit is odd (101), activate it so even units can be placed under it
             const hasActiveUnit = await PlacementService.findActiveUnit(
               request.userId,
               request.contractGameId,
               stage,
-              tx // Pass transaction client
+              tx
             );
 
-            if (!hasActiveUnit && unitNumber % 2 === 1) {
-              // First unit is odd, activate it so even units can be placed under it
+            if (!hasActiveUnit) {
               await tx.unit.update({
                 where: { id: unit.id },
                 data: { isActive: true }
               });
-              logger.info(`Activated first unit ${unit.unitName} for user ${request.userId}`);
+              logger.info(`Activated first unit ${unit.unitName} (${unitNumber}) for user ${request.userId}`);
             }
           }
+          // Do NOT activate unit 103 (i === 2) - only 101 should be active
 
           // Don't check fulfillment inside transaction - do it after to avoid timeout
         } catch (error) {

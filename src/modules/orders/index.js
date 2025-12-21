@@ -297,9 +297,15 @@ router.get('/vendor/orders/:id', authenticate, authorize(['VENDOR']), async (req
 router.post('/:id/accept', authenticate, authorize(['VENDOR']), async (req, res) => {
   try {
     const vendorId = req.user.id;
-    const order = await orderService.acceptOrder(req.params.id, vendorId);
+    const { deliveryDate } = req.body;
 
-    sendResponse(res, 200, order, 'Order accepted successfully');
+    if (!deliveryDate) {
+      return sendError(res, new Error('Delivery date is required'), 400);
+    }
+
+    const order = await orderService.acceptOrder(req.params.id, vendorId, deliveryDate);
+
+    sendResponse(res, 200, order, 'Order accepted with delivery date. Waiting for user approval.');
   } catch (error) {
     sendError(res, error);
   }

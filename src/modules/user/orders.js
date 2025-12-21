@@ -111,4 +111,62 @@ router.put('/:id/cancel', authenticate, authorize(['USER', 'MENTOR']), async (re
   }
 });
 
+/**
+ * @swagger
+ * /api/user/orders/:id/approve-delivery-date:
+ *   post:
+ *     summary: Approve delivery date (USER and MENTOR roles only)
+ *     tags: [User Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Delivery date approved, order accepted
+ */
+router.post('/:id/approve-delivery-date', authenticate, authorize(['USER', 'MENTOR']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const order = await orderService.approveDeliveryDate(req.params.id, userId);
+
+    sendResponse(res, 200, order, 'Delivery date approved. Order is now accepted.');
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/user/orders/:id/reject-delivery-date:
+ *   post:
+ *     summary: Reject delivery date (USER and MENTOR roles only)
+ *     tags: [User Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Delivery date rejected, order sent back to vendor
+ */
+router.post('/:id/reject-delivery-date', authenticate, authorize(['USER', 'MENTOR']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const order = await orderService.rejectDeliveryDate(req.params.id, userId);
+
+    sendResponse(res, 200, order, 'Delivery date rejected. Order sent back to vendor for a new date.');
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
 module.exports = { router };

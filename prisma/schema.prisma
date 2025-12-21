@@ -486,6 +486,7 @@ enum PurchaseRequestStatus {
 
 enum OrderStatus {
   PENDING_VENDOR_APPROVAL
+  PENDING_USER_APPROVAL
   ACCEPTED
   REJECTED
   CONFIRMED
@@ -577,6 +578,8 @@ model Order {
   shippingName    String?
   shippingPhone   String?
   notes           String?
+  proposedDeliveryDate DateTime? // Date proposed by vendor when accepting
+  userApprovedDate     Boolean?  // Whether user approved the delivery date
   confirmedAt     DateTime?
   shippedAt       DateTime?
   deliveredAt     DateTime?
