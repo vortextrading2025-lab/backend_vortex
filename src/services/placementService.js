@@ -19,9 +19,14 @@ class PlacementService {
 
   /**
    * Get next unit number for a user in a contract game and stage
-   * Stage 1: 101-104 for first 4, then 1001+
-   * Stage 2: 2001-2004 for first 4, then 2005+
-   * Stage 3: 3001-3004 for first 4, then 3005+
+   * Rules:
+   * - NEW user: Stage 1 starts at 101, Stage 2 at 2001, Stage 3 at 3001
+   * - SAME user, SAME stage: Continues sequentially (101-104, then 105, 106, 107...)
+   * - SAME user, DIFFERENT stage: Uses stage prefix (2001-2004, then 2005, 2006...)
+   * 
+   * Stage 1: 101-104 for first 4, then 105, 106, 107... (continues sequentially)
+   * Stage 2: 2001-2004 for first 4, then 2005, 2006, 2007... (continues sequentially)
+   * Stage 3: 3001-3004 for first 4, then 3005, 3006, 3007... (continues sequentially)
    */
   static async getNextUnitNumber(userId, contractGameId, stage, tx = null) {
     const client = tx || database.getClient();
@@ -35,7 +40,7 @@ class PlacementService {
     });
 
     if (!lastUnit) {
-      // First unit in this stage
+      // First unit in this stage for this user
       if (stage === 1) return 101;
       if (stage === 2) return 2001;
       if (stage === 3) return 3001;
@@ -43,18 +48,37 @@ class PlacementService {
 
     const lastNumber = lastUnit.unitNumber;
     
-    // If last number is in first 4 range (101-104, 2001-2004, 3001-3004)
-    if (stage === 1 && lastNumber >= 101 && lastNumber <= 104) {
-      return lastNumber + 1 <= 104 ? lastNumber + 1 : 1001;
+    // Stage 1: First purchase 101-104, then continues 105, 106, 107...
+    if (stage === 1) {
+      if (lastNumber >= 101 && lastNumber <= 104) {
+        // Still in first 4 units, continue sequentially
+        return lastNumber + 1 <= 104 ? lastNumber + 1 : 105;
+      }
+      // After 104, continue sequentially: 105, 106, 107...
+      return lastNumber + 1;
     }
-    if (stage === 2 && lastNumber >= 2001 && lastNumber <= 2004) {
-      return lastNumber + 1 <= 2004 ? lastNumber + 1 : 2005;
+    
+    // Stage 2: First purchase 2001-2004, then continues 2005, 2006, 2007...
+    if (stage === 2) {
+      if (lastNumber >= 2001 && lastNumber <= 2004) {
+        // Still in first 4 units, continue sequentially
+        return lastNumber + 1 <= 2004 ? lastNumber + 1 : 2005;
+      }
+      // After 2004, continue sequentially: 2005, 2006, 2007...
+      return lastNumber + 1;
     }
-    if (stage === 3 && lastNumber >= 3001 && lastNumber <= 3004) {
-      return lastNumber + 1 <= 3004 ? lastNumber + 1 : 3005;
+    
+    // Stage 3: First purchase 3001-3004, then continues 3005, 3006, 3007...
+    if (stage === 3) {
+      if (lastNumber >= 3001 && lastNumber <= 3004) {
+        // Still in first 4 units, continue sequentially
+        return lastNumber + 1 <= 3004 ? lastNumber + 1 : 3005;
+      }
+      // After 3004, continue sequentially: 3005, 3006, 3007...
+      return lastNumber + 1;
     }
 
-    // Otherwise, increment normally
+    // Fallback: increment normally
     return lastNumber + 1;
   }
 
@@ -298,10 +322,31 @@ class PlacementService {
             }
           }
         } else {
-          // Even units (102, 104, etc.): ALWAYS place under OWNER's (user's) own active unit
-          targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
+          // Even units (102, 104, etc.): ALWAYS place under OWNER's FIRST unit (101)
+          // IMPORTANT: Even units should go under the FIRST unit (101), not the active unit
+          // This ensures 102 and 104 both go under 101, not 102 going under 101 and 104 going under 102
+          const ownerFirstUnit = await client.unit.findFirst({
+            where: {
+              ownerId: ownerId,
+              contractGameId: contractGameId,
+              stage: stage,
+              isSystemRoot: false,
+              unitNumber: {
+                gte: stage === 1 ? 101 : stage === 2 ? 2001 : 3001,
+                lte: stage === 1 ? 104 : stage === 2 ? 2004 : 3004
+              }
+            },
+            orderBy: { unitNumber: 'asc' } // Get first unit (101, 2001, or 3001)
+          });
           
-          // If owner has no active unit, use system root as fallback
+          // Use first unit (101) if it exists, otherwise use active unit as fallback
+          if (ownerFirstUnit) {
+            targetActiveUnit = ownerFirstUnit;
+          } else {
+            targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
+          }
+          
+          // If owner has no units at all, use system root as fallback
           if (!targetActiveUnit) {
             targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
             if (!targetActiveUnit) {
@@ -451,9 +496,6 @@ class PlacementService {
   static async buildUnitSubtree(unitId, tx = null) {
     const client = tx || database.getClient();
     
-    // Get all units in the subtree in one query using recursive CTE would be ideal
-    // For now, limit depth or use a more efficient approach
-    
     // Get root unit
     const rootUnit = await client.unit.findUnique({
       where: { id: unitId },
@@ -469,35 +511,71 @@ class PlacementService {
 
     if (!rootUnit) return null;
 
-    // Get all descendants in one query (limit depth to prevent excessive queries)
-    const MAX_DEPTH = 10; // Adjust based on your tree depth
-    const allDescendants = await client.unit.findMany({
-      where: {
-        parentUnitId: { not: null },
-        // You might need to add a path tracking field or use recursive query
-      },
-      include: {
-        owner: { select: { id: true, email: true, firstName: true, lastName: true } },
-        mentor: { select: { id: true, email: true, firstName: true, lastName: true } },
-        host: { select: { id: true, email: true, firstName: true, lastName: true } },
-        parentUnit: { select: { id: true, unitName: true, unitNumber: true } },
-        contractGame: { select: { id: true, name: true } },
-        payouts: { select: { id: true, amount: true, stage: true, status: true, createdAt: true } }
+    // Recursively build the subtree starting from root unit
+    const MAX_DEPTH = 20; // Maximum depth to prevent infinite loops
+    const unitMap = new Map();
+    
+    // Helper function to recursively fetch children
+    const fetchChildren = async (parentId, depth = 0) => {
+      if (depth > MAX_DEPTH) return;
+      
+      const children = await client.unit.findMany({
+        where: {
+          parentUnitId: parentId,
+          contractGameId: rootUnit.contractGameId, // Only get units from same contract game
+          stage: rootUnit.stage // Only get units from same stage
+        },
+        include: {
+          owner: { select: { id: true, email: true, firstName: true, lastName: true } },
+          mentor: { select: { id: true, email: true, firstName: true, lastName: true } },
+          host: { select: { id: true, email: true, firstName: true, lastName: true } },
+          parentUnit: { select: { id: true, unitName: true, unitNumber: true } },
+          contractGame: { select: { id: true, name: true } },
+          payouts: { select: { id: true, amount: true, stage: true, status: true, createdAt: true } }
+        },
+        orderBy: [
+          { level: 'asc' },
+          { positionInLevel: 'asc' }
+        ]
+      });
+
+      // Store children in unit map
+      children.forEach(child => {
+        if (!unitMap.has(child.id)) {
+          unitMap.set(child.id, { ...child, childrenUnits: [] });
+        }
+      });
+
+      // Recursively fetch children of each child
+      for (const child of children) {
+        await fetchChildren(child.id, depth + 1);
+      }
+    };
+
+    // Start building from root unit
+    unitMap.set(rootUnit.id, { ...rootUnit, childrenUnits: [] });
+    await fetchChildren(unitId, 0);
+
+    // Build parent-child relationships
+    unitMap.forEach((unit, unitId) => {
+      if (unit.parentUnitId && unitMap.has(unit.parentUnitId)) {
+        const parent = unitMap.get(unit.parentUnitId);
+        if (!parent.childrenUnits) {
+          parent.childrenUnits = [];
+        }
+        parent.childrenUnits.push(unit);
       }
     });
 
-    // Build tree structure in memory
-    const unitMap = new Map();
-    unitMap.set(rootUnit.id, { ...rootUnit, childrenUnits: [] });
-    allDescendants.forEach(unit => {
-      unitMap.set(unit.id, { ...unit, childrenUnits: [] });
-    });
-
-    // Build parent-child relationships
-    allDescendants.forEach(unit => {
-      if (unit.parentUnitId && unitMap.has(unit.parentUnitId)) {
-        const parent = unitMap.get(unit.parentUnitId);
-        parent.childrenUnits.push(unitMap.get(unit.id));
+    // Sort children by positionInLevel (descending) and unitNumber
+    unitMap.forEach(unit => {
+      if (unit.childrenUnits && unit.childrenUnits.length > 0) {
+        unit.childrenUnits.sort((a, b) => {
+          if (a.positionInLevel !== b.positionInLevel) {
+            return b.positionInLevel - a.positionInLevel; // Descending order
+          }
+          return a.unitNumber - b.unitNumber;
+        });
       }
     });
 

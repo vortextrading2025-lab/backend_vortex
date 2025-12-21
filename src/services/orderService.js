@@ -28,7 +28,11 @@ const createOrderSchema = z.object({
 });
 
 const updateOrderStatusSchema = z.object({
-  status: z.enum(['PENDING_VENDOR_APPROVAL', 'ACCEPTED', 'REJECTED', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
+  status: z.enum(['PENDING_VENDOR_APPROVAL', 'PENDING_USER_APPROVAL', 'ACCEPTED', 'REJECTED', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
+});
+
+const acceptOrderSchema = z.object({
+  deliveryDate: z.string().datetime().or(z.date()),
 });
 
 class OrderService {
@@ -264,6 +268,8 @@ class OrderService {
         shippingName: true,
         shippingPhone: true,
         notes: true,
+        proposedDeliveryDate: true,
+        userApprovedDate: true,
         confirmedAt: true,
         shippedAt: true,
         deliveredAt: true,
@@ -379,6 +385,8 @@ class OrderService {
           shippingName: true,
           shippingPhone: true,
           notes: true,
+          proposedDeliveryDate: true,
+          userApprovedDate: true,
           confirmedAt: true,
           shippedAt: true,
           deliveredAt: true,
@@ -499,6 +507,8 @@ class OrderService {
           shippingName: true,
           shippingPhone: true,
           notes: true,
+          proposedDeliveryDate: true,
+          userApprovedDate: true,
           confirmedAt: true,
           shippedAt: true,
           deliveredAt: true,
@@ -583,7 +593,8 @@ class OrderService {
 
     // Validate status transition
     const validTransitions = {
-      PENDING_VENDOR_APPROVAL: ['ACCEPTED', 'REJECTED', 'CANCELLED'], // Vendor can accept/reject, user can cancel
+      PENDING_VENDOR_APPROVAL: ['PENDING_USER_APPROVAL', 'REJECTED', 'CANCELLED'], // Vendor can accept (with date) -> PENDING_USER_APPROVAL, reject, user can cancel
+      PENDING_USER_APPROVAL: ['ACCEPTED', 'PENDING_VENDOR_APPROVAL', 'CANCELLED'], // User can approve -> ACCEPTED, reject -> back to vendor, or cancel
       ACCEPTED: ['CONFIRMED', 'SHIPPED', 'CANCELLED'], // Vendor can confirm/ship, user can cancel
       REJECTED: [], // Final state
       CONFIRMED: ['SHIPPED', 'CANCELLED'], // Vendor can ship, user can cancel
@@ -598,9 +609,9 @@ class OrderService {
 
     // Handle cancellation
     if (status === 'CANCELLED') {
-      // User can cancel PENDING_VENDOR_APPROVAL or ACCEPTED orders
+      // User can cancel PENDING_VENDOR_APPROVAL, PENDING_USER_APPROVAL, or ACCEPTED orders
       // Vendor can cancel ACCEPTED or CONFIRMED orders
-      if ((order.status === 'PENDING_VENDOR_APPROVAL' || order.status === 'ACCEPTED') && !userId && !vendorId) {
+      if ((order.status === 'PENDING_VENDOR_APPROVAL' || order.status === 'PENDING_USER_APPROVAL' || order.status === 'ACCEPTED') && !userId && !vendorId) {
         throw new Error('Only the user or vendor can cancel this order');
       }
 
@@ -616,8 +627,8 @@ class OrderService {
         await Promise.all(stockRestores);
       }
 
-      // Refund wallet if order was paid (PENDING_VENDOR_APPROVAL, ACCEPTED, CONFIRMED)
-      if (order.status === 'PENDING_VENDOR_APPROVAL' || order.status === 'ACCEPTED' || order.status === 'CONFIRMED') {
+      // Refund wallet if order was paid (PENDING_VENDOR_APPROVAL, PENDING_USER_APPROVAL, ACCEPTED, CONFIRMED)
+      if (order.status === 'PENDING_VENDOR_APPROVAL' || order.status === 'PENDING_USER_APPROVAL' || order.status === 'ACCEPTED' || order.status === 'CONFIRMED') {
         await WalletService.addToWallet(
           order.userId,
           Number(order.totalAmount),
@@ -705,16 +716,27 @@ class OrderService {
   }
 
   /**
-   * Vendor accepts order
+   * Vendor accepts order with delivery date
    * @param {String} orderId - Order ID
    * @param {String} vendorId - Vendor ID
-   * @returns {Promise<Object>} Accepted order
+   * @param {String|Date} deliveryDate - Proposed delivery date
+   * @returns {Promise<Object>} Order with PENDING_USER_APPROVAL status
    */
-  async acceptOrder(orderId, vendorId) {
+  async acceptOrder(orderId, vendorId, deliveryDate) {
     const order = await this.getOrderById(orderId, null, vendorId);
 
     if (order.status !== 'PENDING_VENDOR_APPROVAL') {
       throw new Error(`Order must be in PENDING_VENDOR_APPROVAL status. Current status: ${order.status}`);
+    }
+
+    // Validate delivery date
+    if (!deliveryDate) {
+      throw new Error('Delivery date is required when accepting an order');
+    }
+
+    const parsedDate = new Date(deliveryDate);
+    if (isNaN(parsedDate.getTime())) {
+      throw new Error('Invalid delivery date format');
     }
 
     // Verify stock is still available
@@ -733,13 +755,59 @@ class OrderService {
       }
     }
 
-    // Accept order and decrease stock in transaction
+    // Accept order and set status to PENDING_USER_APPROVAL (waiting for user to approve delivery date)
     return await prisma.$transaction(async (tx) => {
-      // Update order status to ACCEPTED
+      // Update order status to PENDING_USER_APPROVAL with proposed delivery date
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'PENDING_USER_APPROVAL',
+          proposedDeliveryDate: parsedDate,
+          userApprovedDate: null, // Reset approval status
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          vendor: true,
+          user: true,
+        },
+      });
+
+      // Don't decrease stock yet - wait for user approval
+      // Stock will be decreased when user approves the delivery date
+
+      return updatedOrder;
+    });
+  }
+
+  /**
+   * User approves delivery date
+   * @param {String} orderId - Order ID
+   * @param {String} userId - User ID
+   * @returns {Promise<Object>} Accepted order with stock decreased
+   */
+  async approveDeliveryDate(orderId, userId) {
+    const order = await this.getOrderById(orderId, userId, null);
+
+    if (order.status !== 'PENDING_USER_APPROVAL') {
+      throw new Error(`Order must be in PENDING_USER_APPROVAL status. Current status: ${order.status}`);
+    }
+
+    if (!order.proposedDeliveryDate) {
+      throw new Error('No delivery date proposed for this order');
+    }
+
+    // Approve delivery date and decrease stock in transaction
+    return await prisma.$transaction(async (tx) => {
+      // Update order status to ACCEPTED and mark date as approved
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           status: 'ACCEPTED',
+          userApprovedDate: true,
           confirmedAt: new Date(),
         },
         include: {
@@ -753,11 +821,48 @@ class OrderService {
         },
       });
 
-      // Decrease stock for each product
+      // Decrease stock for each product now that user approved
       const stockUpdates = order.items.map((item) =>
         productService.decreaseStock(item.productId, item.quantity)
       );
       await Promise.all(stockUpdates);
+
+      return updatedOrder;
+    });
+  }
+
+  /**
+   * User rejects delivery date
+   * @param {String} orderId - Order ID
+   * @param {String} userId - User ID
+   * @returns {Promise<Object>} Order back to PENDING_VENDOR_APPROVAL
+   */
+  async rejectDeliveryDate(orderId, userId) {
+    const order = await this.getOrderById(orderId, userId, null);
+
+    if (order.status !== 'PENDING_USER_APPROVAL') {
+      throw new Error(`Order must be in PENDING_USER_APPROVAL status. Current status: ${order.status}`);
+    }
+
+    // Reject delivery date - send order back to vendor for new date
+    return await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'PENDING_VENDOR_APPROVAL',
+          proposedDeliveryDate: null,
+          userApprovedDate: false,
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          vendor: true,
+          user: true,
+        },
+      });
 
       return updatedOrder;
     });

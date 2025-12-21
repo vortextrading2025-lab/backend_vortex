@@ -217,7 +217,7 @@ router.get('/my-units', async (req, res) => {
  * GET /api/units/my-requests
  * Get user's purchase requests
  */
-router.get('/my-requests', async (req, res) => {
+router.get('/my-requests', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const contractGameId = req.query.contractGameId || null;
@@ -232,7 +232,17 @@ router.get('/my-requests', async (req, res) => {
 
     const requests = await database.getClient().purchaseRequest.findMany({
       where: where,
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        contractGameId: true,
+        unitCount: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        placedAt: true,
+        cooldownEndsAt: true,
+        refundedAt: true,
         contractGame: {
           select: {
             id: true,
