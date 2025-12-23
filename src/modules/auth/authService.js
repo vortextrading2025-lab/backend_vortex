@@ -146,11 +146,11 @@ class AuthService {
       });
       console.log("user ==>", user);
 
-      // Link user to invite if provided (inviter becomes mentor)
+      // Link user to invite if provided (inviter becomes host when user purchases units)
       if (inviteLink) {
         const InviteService = require('../contract/inviteService');
         await InviteService.useInviteLink(validatedData.inviteCode, user.id);
-        logger.info(`User ${user.id} registered via invite code ${validatedData.inviteCode} from user ${inviteLink.inviterId}`);
+        logger.info(`User ${user.id} registered via invite code ${validatedData.inviteCode} from inviter ${inviteLink.inviterId} (${inviteLink.inviter.email}). When user purchases units, inviter will become the host.`);
       } else if (validatedData.role === 'USER') {
         // Auto-assign mentor for regular users (if no invite link)
         try {

@@ -53,6 +53,8 @@ model User {
   settlements            Settlement[]
   cartItems              CartItem[]
   wishlistItems          WishlistItem[]
+  bonusWallet            BonusWallet?
+  bonuses                Bonus[]
 
   @@map("users")
 }
@@ -200,19 +202,21 @@ model RateLimit {
 }
 
 model ContractGame {
-  id               String             @id @default(cuid())
-  name             String
-  downPayment      Decimal            @db.Decimal(10, 2)
-  status           ContractGameStatus @default(ACTIVE)
-  createdById      String
-  payoutStage1     Decimal            @db.Decimal(10, 2)
-  payoutStage2     Decimal            @db.Decimal(10, 2)
-  payoutStage3     Decimal            @db.Decimal(10, 2)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  createdBy        User               @relation("CreatedContractGames", fields: [createdById], references: [id], onDelete: Cascade)
-  purchaseRequests PurchaseRequest[]
-  units            Unit[]
+  id                  String             @id @default(cuid())
+  name                String
+  downPayment         Decimal            @db.Decimal(10, 2) // Stage 1 advance payment (500.00)
+  advancePaymentStage2 Decimal          @db.Decimal(10, 2) // Stage 2 advance payment (1,150.00)
+  advancePaymentStage3 Decimal          @db.Decimal(10, 2) // Stage 3 advance payment (2,600.00)
+  status              ContractGameStatus @default(ACTIVE)
+  createdById         String
+  payoutStage1        Decimal            @db.Decimal(10, 2) // Phase Delivery Stage 1 (350.00)
+  payoutStage2        Decimal            @db.Decimal(10, 2) // Phase Delivery Stage 2 (850.00)
+  payoutStage3        Decimal            @db.Decimal(10, 2) // Phase Delivery Stage 3 (7,800.00)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  createdBy           User               @relation("CreatedContractGames", fields: [createdById], references: [id], onDelete: Cascade)
+  purchaseRequests    PurchaseRequest[]
+  units               Unit[]
 
   @@index([status])
   @@index([createdById])
@@ -542,7 +546,9 @@ model Product {
   subcategoryId String
   name          String
   description   String?
-  price         Decimal        @db.Decimal(10, 2)
+  costPrice     Decimal?       @db.Decimal(10, 2) // Cost price (vendor's cost) - temporarily optional for migration
+  mrp           Decimal?       @db.Decimal(10, 2) // Maximum Retail Price - temporarily optional for migration
+  sellingPrice  Decimal?       @db.Decimal(10, 2) // Selling price (what customer pays) - temporarily optional for migration
   currency      String         @default("CAD")
   stock         Int            @default(0)
   images        String[] // Array of 5 image URLs
@@ -567,29 +573,29 @@ model Product {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  userId          String
-  vendorId        String
-  orderNumber     String      @unique
-  totalAmount     Decimal     @db.Decimal(10, 2)
-  currency        String      @default("CAD")
-  status          OrderStatus @default(PENDING_VENDOR_APPROVAL)
-  shippingAddress Json? // Full address object
-  shippingName    String?
-  shippingPhone   String?
-  notes           String?
+  id                   String      @id @default(cuid())
+  userId               String
+  vendorId             String
+  orderNumber          String      @unique
+  totalAmount          Decimal     @db.Decimal(10, 2)
+  currency             String      @default("CAD")
+  status               OrderStatus @default(PENDING_VENDOR_APPROVAL)
+  shippingAddress      Json? // Full address object
+  shippingName         String?
+  shippingPhone        String?
+  notes                String?
   proposedDeliveryDate DateTime? // Date proposed by vendor when accepting
-  userApprovedDate     Boolean?  // Whether user approved the delivery date
-  confirmedAt     DateTime?
-  shippedAt       DateTime?
-  deliveredAt     DateTime?
-  cancelledAt     DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vendor          User        @relation("VendorOrders", fields: [vendorId], references: [id], onDelete: Cascade)
-  items           OrderItem[]
-  settlement      Settlement?
+  userApprovedDate     Boolean? // Whether user approved the delivery date
+  confirmedAt          DateTime?
+  shippedAt            DateTime?
+  deliveredAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendor               User        @relation("VendorOrders", fields: [vendorId], references: [id], onDelete: Cascade)
+  items                OrderItem[]
+  settlement           Settlement?
 
   @@index([userId])
   @@index([vendorId])
@@ -604,7 +610,8 @@ model OrderItem {
   orderId   String
   productId String
   quantity  Int
-  price     Decimal  @db.Decimal(10, 2) // Price at time of order
+  price     Decimal  @db.Decimal(10, 2) // Selling price at time of order
+  costPrice Decimal? @db.Decimal(10, 2) // Cost price at time of order (for bonus calculation) - temporarily optional for migration
   subtotal  Decimal  @db.Decimal(10, 2)
   createdAt DateTime @default(now())
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -663,4 +670,53 @@ model WishlistItem {
   @@index([userId])
   @@index([productId])
   @@map("wishlist_items")
+}
+
+model BonusWallet {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  balance        Float    @default(0)
+  totalBonus     Float    @default(0)
+  totalRedeemed  Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bonuses        Bonus[]
+
+  @@map("bonus_wallets")
+}
+
+model Bonus {
+  id            String      @id @default(cuid())
+  userId        String
+  bonusWalletId String
+  orderId       String
+  orderNumber   String?     // Order number for display (e.g., ORD-1234567890-1234)
+  orderItemId   String
+  productId     String
+  productName   String
+  quantity      Int
+  sellingPrice  Decimal     @db.Decimal(10, 2)
+  costPrice     Decimal     @db.Decimal(10, 2)
+  bonusAmount   Decimal     @db.Decimal(10, 2) // sellingPrice - costPrice * quantity
+  status        BonusStatus @default(ACTIVE)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  redeemedAt    DateTime?
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bonusWallet   BonusWallet @relation(fields: [bonusWalletId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([productId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bonuses")
+}
+
+enum BonusStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  CANCELLED
 }

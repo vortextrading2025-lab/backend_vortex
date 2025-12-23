@@ -99,7 +99,7 @@ router.get('/', async (req, res) => {
       ...(categoryId && { categoryId }),
       ...(subcategoryId && { subcategoryId }),
       ...(minPrice || maxPrice ? {
-        price: {
+        sellingPrice: {
           ...(minPrice && { gte: parseFloat(minPrice) }),
           ...(maxPrice && { lte: parseFloat(maxPrice) }),
         },
@@ -117,7 +117,9 @@ router.get('/', async (req, res) => {
         id: true,
         name: true,
         description: true,
-        price: true,
+        costPrice: true,
+        mrp: true,
+        sellingPrice: true,
         currency: true,
         stock: true,
         images: true,
@@ -293,16 +295,18 @@ router.get('/:id', async (req, res) => {
         subcategoryId: true,
         name: true,
         description: true,
-        price: true,
+        costPrice: true,
+        mrp: true,
+        sellingPrice: true,
         currency: true,
-          stock: true,
-          images: true,
-          sku: true,
-          attributes: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-          vendor: {
+        stock: true,
+        images: true,
+        sku: true,
+        attributes: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        vendor: {
           select: {
             id: true,
             email: true,

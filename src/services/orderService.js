@@ -147,13 +147,14 @@ class OrderService {
           throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
         }
 
-        const subtotal = Number(product.price) * item.quantity;
+        const subtotal = Number(product.sellingPrice) * item.quantity;
         totalAmount += subtotal;
 
         orderItems.push({
           productId: product.id,
           quantity: item.quantity,
-          price: product.price,
+          price: product.sellingPrice, // Store selling price at time of order
+          costPrice: product.costPrice, // Store cost price for bonus calculation
           subtotal: subtotal,
         });
       }
@@ -283,16 +284,18 @@ class OrderService {
             quantity: true,
             price: true,
             subtotal: true,
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                images: true,
-                stock: true,
-                sku: true,
-                attributes: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    sellingPrice: true,
+                    costPrice: true,
+                    mrp: true,
+                    images: true,
+                    stock: true,
+                    sku: true,
+                    attributes: true,
                 category: {
                   select: {
                     id: true,
@@ -406,7 +409,9 @@ class OrderService {
                   name: true,
                   description: true,
                   images: true,
-                  price: true,
+                  sellingPrice: true,
+                  costPrice: true,
+                  mrp: true,
                   sku: true,
                   attributes: true,
                   category: {
@@ -528,7 +533,9 @@ class OrderService {
                   name: true,
                   description: true,
                   images: true,
-                  price: true,
+                  sellingPrice: true,
+                  costPrice: true,
+                  mrp: true,
                   sku: true,
                   attributes: true,
                   category: {
@@ -667,7 +674,9 @@ class OrderService {
                 select: {
                   id: true,
                   name: true,
-                  price: true,
+                  sellingPrice: true,
+                  costPrice: true,
+                  mrp: true,
                   stock: true,
                 },
               },
@@ -686,6 +695,53 @@ class OrderService {
       updateData.shippedAt = new Date();
     } else if (status === 'DELIVERED') {
       updateData.deliveredAt = new Date();
+      
+      // Calculate and create bonus records when order is delivered
+      // Bonus = (sellingPrice - costPrice) * quantity for each item
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          user: true,
+        },
+      });
+
+      if (order && order.items.length > 0) {
+        const BonusService = require('./bonusService');
+        
+        // Create bonus record for each order item
+        for (const item of order.items) {
+          const sellingPrice = Number(item.price);
+          const costPrice = Number(item.costPrice);
+          const bonusPerItem = sellingPrice - costPrice;
+          
+          if (bonusPerItem > 0) {
+            const bonusAmount = bonusPerItem * item.quantity;
+            
+            await BonusService.createBonus({
+              userId: order.userId,
+              orderId: order.id,
+              orderNumber: order.orderNumber || null, // Pass order number for display
+              orderItemId: item.id,
+              productId: item.productId,
+              productName: item.product.name,
+              quantity: item.quantity,
+              sellingPrice: sellingPrice,
+              costPrice: costPrice,
+              bonusAmount: bonusAmount
+            });
+          }
+        }
+      }
     }
 
     const updatedOrder = await prisma.order.update({

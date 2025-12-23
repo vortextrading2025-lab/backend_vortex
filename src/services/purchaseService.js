@@ -5,107 +5,15 @@ const FulfillmentService = require('./fulfillmentService');
 
 /**
  * PurchaseService
- * Handles purchase requests and mentor assignment
+ * Handles purchase requests and automatic unit placement
+ * No mentor approval needed - system auto-approves and places units
  */
 class PurchaseService {
   /**
-   * Auto-assign mentor to a user for a contract game
-   * Assigns based on least number of pending requests
-   */
-  static async assignMentor(userId, contractGameId) {
-    // Find all active mentors
-    const mentors = await database.getClient().user.findMany({
-      where: {
-        role: 'MENTOR',
-        status: 'ACTIVE'
-      },
-      include: {
-        _count: {
-          select: {
-            mentorRequests: {
-              where: {
-                status: 'PENDING',
-                contractGameId: contractGameId
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (mentors.length === 0) {
-      throw new Error('No active mentors available');
-    }
-
-    // Sort by number of pending requests (ascending)
-    mentors.sort((a, b) => {
-      return a._count.mentorRequests - b._count.mentorRequests;
-    });
-
-    // Return mentor with least pending requests
-    // If tie, return first one (could be randomized in future)
-    const assignedMentor = mentors[0];
-
-    logger.info(`Assigned mentor ${assignedMentor.id} to user ${userId} for contract game ${contractGameId}`);
-    return assignedMentor;
-  }
-
-  /**
-   * Assign default mentor to a user (for signup)
-   * Round-robin assignment: assigns to mentor with least mentees
-   * If only 1 mentor exists, ALL users go to that mentor
-   */
-  static async assignDefaultMentor(userId) {
-    // Find all active mentors with their mentee count
-    const mentors = await database.getClient().user.findMany({
-      where: {
-        role: 'MENTOR',
-        status: 'ACTIVE'
-      },
-      include: {
-        _count: {
-          select: {
-            mentees: true // Count users assigned to this mentor
-          }
-        }
-      }
-    });
-
-    if (mentors.length === 0) {
-      throw new Error('No active mentors available');
-    }
-
-    // If only 1 mentor, ALL users go to that mentor
-    if (mentors.length === 1) {
-      const mentor = mentors[0];
-      await database.getClient().user.update({
-        where: { id: userId },
-        data: { mentorId: mentor.id }
-      });
-      logger.info(`Assigned default mentor ${mentor.id} (${mentor.email}) to user ${userId} - Only 1 mentor available, all users assigned to this mentor`);
-      return mentor;
-    }
-
-    // Multiple mentors: Round-robin - assign to mentor with least mentees
-    mentors.sort((a, b) => {
-      return a._count.mentees - b._count.mentees;
-    });
-
-    // Assign to mentor with least mentees
-    const assignedMentor = mentors[0];
-
-    await database.getClient().user.update({
-      where: { id: userId },
-      data: { mentorId: assignedMentor.id }
-    });
-
-    logger.info(`Assigned default mentor ${assignedMentor.id} (${assignedMentor.email}) to user ${userId} - Round-robin (${assignedMentor._count.mentees} mentees)`);
-    return assignedMentor;
-  }
-
-  /**
    * Create purchase request
-   * Uses user's assigned mentor if available, otherwise auto-assigns one
+   * Auto-approved immediately, units placed automatically
+   * If user was invited, inviter becomes the host
+   * If not invited, system places under system root
    */
   static async createPurchaseRequest(userId, contractGameId, unitCount = 1) {
     // Validate unit count (minimum 1)
@@ -113,134 +21,166 @@ class PurchaseService {
       throw new Error('At least 1 unit is required');
     }
 
-    // Get contract game
-    const contractGame = await database.getClient().contractGame.findUnique({
+    // Get contract game - if not found or not active, automatically use the active one
+    let contractGame = await database.getClient().contractGame.findUnique({
       where: { id: contractGameId }
     });
 
-    if (!contractGame) {
-      throw new Error('Contract game not found');
-    }
-
-    if (contractGame.status !== 'ACTIVE') {
-      throw new Error('Contract game is not active');
-    }
-
-    // Check for active cooldown period
-    // Users cannot purchase more units if they have units in cooldown period (14 days from placement)
-    // During cooldown: user can play in contract but will NOT receive payouts until cooldown ends
-    // User can cancel and get refund during cooldown period
-    const activeCooldown = await database.getClient().purchaseRequest.findFirst({
-      where: {
-        userId: userId,
-        contractGameId: contractGameId,
-        status: 'PLACED',
-        cooldownEndsAt: {
-          gt: new Date() // Cooldown hasn't ended yet
-        },
-        refundedAt: null // Not refunded
-      },
-      orderBy: {
-        cooldownEndsAt: 'desc' // Get the most recent cooldown
-      },
-      select: {
-        cooldownEndsAt: true,
-        placedAt: true
-      }
-    });
-
-    if (activeCooldown) {
-      const cooldownEndsAt = new Date(activeCooldown.cooldownEndsAt);
-      const now = new Date();
-      const timeRemaining = cooldownEndsAt.getTime() - now.getTime();
-      const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
-      const hoursRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60));
+    // If contract game not found or not active, automatically find and use the active one
+    if (!contractGame || contractGame.status !== 'ACTIVE') {
+      logger.warn(`Contract game ${contractGameId} not found or not active. Auto-detecting active contract game...`);
       
-      let timeMessage = '';
-      if (daysRemaining > 1) {
-        timeMessage = `${daysRemaining} days`;
-      } else if (hoursRemaining > 1) {
-        timeMessage = `${hoursRemaining} hours`;
-      } else {
-        timeMessage = 'less than an hour';
-      }
-      
-      throw new Error(`You are in a cooldown period. You cannot purchase more units until ${cooldownEndsAt.toLocaleString()}. Time remaining: ${timeMessage}. During cooldown, you can play in the contract but will not receive payouts. You can cancel and get a refund during this period.`);
-    }
-
-    // Calculate total amount
-    const totalAmount = contractGame.downPayment * unitCount;
-
-    // Check if user is a mentor
-    const user = await database.getClient().user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, mentorId: true }
-    });
-
-    let mentorId = null;
-    let requestStatus = 'PENDING';
-    let hostId = null;
-
-    // SPECIAL HANDLING FOR MENTORS:
-    // Mentors are NEVER assigned to other mentors
-    // Their purchase requests are auto-approved and placed under admin/system root
-    if (user && user.role === 'MENTOR') {
-      // Get admin user ID for mentorId (for tracking purposes)
-      const admin = await database.getClient().user.findFirst({
-        where: { role: 'ADMIN' },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true }
+      const activeGame = await database.getClient().contractGame.findFirst({
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' } // Get the most recent active game
       });
       
-      mentorId = admin ? admin.id : null; // Use admin as "mentor" for tracking, or null
-      hostId = admin ? admin.id : null; // Host is admin/system root
-      requestStatus = 'APPROVED'; // Auto-approve mentor requests
-      
-      logger.info(`Mentor ${userId} creating purchase request - auto-approved, will be placed under admin/system root`);
-    } else {
-      // Regular user - assign mentor as usual
-      let mentor;
-      if (user && user.mentorId) {
-        // Use user's assigned mentor
-        mentor = await database.getClient().user.findUnique({
-          where: { id: user.mentorId },
-          select: { id: true, email: true, firstName: true, lastName: true, role: true, status: true }
-        });
-
-        // Verify mentor is still active
-        if (!mentor || mentor.role !== 'MENTOR' || mentor.status !== 'ACTIVE') {
-          // Mentor is no longer valid, assign a new one
-          mentor = await this.assignMentor(userId, contractGameId);
-          // Update user's mentor
-          await database.getClient().user.update({
-            where: { id: userId },
-            data: { mentorId: mentor.id }
-          });
-        }
-      } else {
-        // No mentor assigned, auto-assign one
-        mentor = await this.assignMentor(userId, contractGameId);
-        // Update user's mentor for future purchases
-        await database.getClient().user.update({
-          where: { id: userId },
-          data: { mentorId: mentor.id }
-        });
+      if (!activeGame) {
+        throw new Error('No active contract game found. Please contact an administrator to create a contract game.');
       }
-      mentorId = mentor.id;
+      
+      logger.info(`Auto-using active contract game: ${activeGame.id} (${activeGame.name})`);
+      contractGame = activeGame;
+      contractGameId = activeGame.id; // Update contractGameId to the active one
     }
 
-    // Create purchase request
-    const request = await database.getClient().purchaseRequest.create({
-      data: {
-        userId: userId,
-        mentorId: mentorId, // admin ID for mentors, actual mentor ID for regular users
+    // Note: Users can purchase more units even if they're in cooldown
+    // Each new purchase will also go into cooldown (14 days from placement)
+    // During cooldown: user can play in contract but will NOT receive payouts until cooldown ends
+    // User can cancel and get refund during cooldown period
+    // Cooldown check removed - users can buy anytime, new units will also enter cooldown
+
+    // Determine which stage the user is purchasing for
+    // Check user's existing units to determine stage
+    const userUnits = await database.getClient().unit.findMany({
+      where: {
+        ownerId: userId,
         contractGameId: contractGameId,
-        unitCount: unitCount,
-        totalAmount: totalAmount,
-        status: requestStatus, // 'APPROVED' for mentors, 'PENDING' for regular users
-        approvedAt: requestStatus === 'APPROVED' ? new Date() : null,
-        hostId: hostId // admin ID for mentors (system root), null for regular users (set during approval)
+        isSystemRoot: false
       },
+      select: {
+        stage: true
+      }
+    });
+
+    // Determine stage: If user has Stage 3 units, they can buy Stage 3. If Stage 2, buy Stage 2. Otherwise Stage 1.
+    let purchaseStage = 1;
+    let advancePayment = Number(contractGame.downPayment); // Stage 1: 500.00
+    
+    if (userUnits.length > 0) {
+      const maxStage = Math.max(...userUnits.map(u => u.stage));
+      if (maxStage >= 3) {
+        purchaseStage = 3;
+        advancePayment = Number(contractGame.advancePaymentStage3) || Number(contractGame.downPayment); // Stage 3: 2,600.00
+      } else if (maxStage >= 2) {
+        purchaseStage = 2;
+        advancePayment = Number(contractGame.advancePaymentStage2) || Number(contractGame.downPayment); // Stage 2: 1,150.00
+      }
+      // If maxStage is 1, stay at Stage 1 (500.00)
+    }
+
+    // Calculate total amount based on stage
+    const totalAmount = advancePayment * unitCount;
+
+    // Get admin user ID (required for mentorId field in schema, not used for approval)
+    const admin = await database.getClient().user.findFirst({
+      where: { role: 'ADMIN' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true }
+    });
+
+    if (!admin) {
+      throw new Error('Admin user not found. System cannot create purchase requests without an admin user.');
+    }
+
+    // mentorId is required by schema but no longer used
+    // Use admin ID as default for backward compatibility with schema
+    const mentorId = admin.id;
+    let requestStatus = 'APPROVED'; // Auto-approve all requests
+    let hostId = null;
+
+    // Check if user was invited (has an invite link)
+    const inviteLink = await database.getClient().inviteLink.findFirst({
+      where: {
+        invitedUserId: userId,
+        isActive: true
+      },
+      include: {
+        inviter: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      },
+      orderBy: { lastUsedAt: 'desc' } // Get most recent invite
+    });
+
+    // Determine host:
+    // - If user was invited, inviter becomes the host
+    // - If not invited, hostId remains null (system will place under system root)
+    if (inviteLink && inviteLink.inviter) {
+      hostId = inviteLink.inviter.id;
+      
+      // Validate that inviter has an active unit (required for placement)
+      // Determine which stage the user is purchasing for
+      const userUnits = await database.getClient().unit.findMany({
+        where: {
+          ownerId: userId,
+          contractGameId: contractGameId,
+          isSystemRoot: false
+        },
+        select: { stage: true }
+      });
+      
+      let purchaseStage = 1;
+      if (userUnits.length > 0) {
+        const maxStage = Math.max(...userUnits.map(u => u.stage));
+        if (maxStage >= 3) {
+          purchaseStage = 3;
+        } else if (maxStage >= 2) {
+          purchaseStage = 2;
+        }
+      }
+      
+      // Check if inviter has an active unit in the same stage
+      const PlacementService = require('./placementService');
+      const inviterActiveUnit = await PlacementService.findActiveUnit(
+        hostId,
+        contractGameId,
+        purchaseStage
+      );
+      
+      if (!inviterActiveUnit) {
+        logger.warn(`Inviter ${hostId} (${inviteLink.inviter.email}) has no active unit in stage ${purchaseStage}. Units will be placed under system root or another available unit.`);
+        // Don't throw error - allow placement to proceed with fallback logic
+        // The placement service will handle fallback to system root
+      } else {
+        logger.info(`User ${userId} was invited by ${inviteLink.inviter.email} - host set to inviter (has active unit: ${inviterActiveUnit.unitName})`);
+      }
+    } else {
+      // No invite - system will auto-place under system root
+      logger.info(`User ${userId} creating purchase request without invite - system will auto-place`);
+    }
+
+    // Set cooldown period: 14 days from purchase creation (not placement)
+    const cooldownEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days from now
+
+    // Create purchase request (auto-approved, no mentor approval needed)
+    const request = await database.getClient().purchaseRequest.create({
+        data: {
+          userId: userId,
+          mentorId: mentorId, // Required by schema, set to admin ID (not used)
+          contractGameId: contractGameId,
+          unitCount: unitCount,
+          totalAmount: totalAmount,
+          status: requestStatus, // Always 'APPROVED' (auto-approved)
+          approvedAt: new Date(), // Auto-approved immediately
+          hostId: hostId, // inviter ID if invited, null for system auto-place
+          cooldownEndsAt: cooldownEndsAt // Set cooldown immediately when purchase is created
+        },
       include: {
         user: {
           select: {
@@ -250,14 +190,14 @@ class PurchaseService {
             lastName: true
           }
         },
-        mentor: mentorId ? {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        } : undefined,
+          mentor: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true
+            }
+          },
         contractGame: {
           select: {
             id: true,
@@ -268,181 +208,42 @@ class PurchaseService {
       }
     });
 
-    logger.info(`Created purchase request ${request.id} for user ${userId}, ${unitCount} units, total: $${totalAmount}, status: ${requestStatus}`);
+    logger.info(`Created purchase request ${request.id} for user ${userId}, ${unitCount} units, total: $${totalAmount}, status: ${requestStatus}, hostId: ${hostId || 'system'}`);
+    if (hostId) {
+      logger.info(`Purchase request ${request.id}: User was invited, units will be placed under host ${hostId}'s active unit`);
+    } else {
+      logger.info(`Purchase request ${request.id}: User was not invited, units will be placed under system root`);
+    }
     
-    // If mentor request is auto-approved, auto-place units
-    if (requestStatus === 'APPROVED' && user && user.role === 'MENTOR') {
-      // Auto-place mentor units under admin/system root
+    // Auto-place units immediately after creation (system auto-places)
+    // If hostId is set (user was invited), units will be placed under host's active unit
+    // If hostId is null (no invite), units will be placed under system root
+    if (requestStatus === 'APPROVED') {
       try {
+        // Check if system root exists before attempting placement
+        const systemRoot = await PlacementService.findSystemRoot(contractGameId, 1);
+        if (!systemRoot && !hostId) {
+          logger.warn(`No system root found for contract game ${contractGameId}. Placement may fail.`);
+        }
+        
         await this.processPlacement(request.id);
-        logger.info(`Auto-placed units for mentor ${userId} purchase request ${request.id}`);
+        logger.info(`Auto-placed units for purchase request ${request.id} (hostId: ${hostId || 'system'})`);
       } catch (error) {
-        logger.error(`Error auto-placing mentor units:`, error);
-        // Don't fail the request creation, just log the error
+        logger.error(`Error auto-placing units for request ${request.id}:`, error);
+        logger.error(`Error details: ${error.message}`);
+        logger.error(`Stack: ${error.stack}`);
+        // Re-throw the error so the API can return it to the user
+        // This way the user knows what went wrong instead of seeing "Placing..." forever
+        throw new Error(`Failed to place units: ${error.message}. Please contact support if this persists.`);
       }
     }
     
     return request;
   }
 
-  /**
-   * Approve purchase request
-   * @param {string} requestId - Purchase request ID
-   * @param {string} mentorId - Mentor ID approving the request
-   * @param {string} hostId - Optional host ID (if mentor wants to specify who the host is)
-   */
-  static async approvePurchase(requestId, mentorId, hostId = null) {
-    return await database.getClient().$transaction(async (tx) => {
-      const request = await tx.purchaseRequest.findUnique({
-        where: { id: requestId },
-        include: {
-          contractGame: true,
-          user: true
-        }
-      });
-
-      if (!request) {
-        throw new Error('Purchase request not found');
-      }
-
-      if (request.mentorId !== mentorId) {
-        throw new Error('Only the assigned mentor can approve this request');
-      }
-
-      if (request.status !== 'PENDING') {
-        throw new Error(`Purchase request is already ${request.status}`);
-      }
-
-      // If hostId is provided, validate it exists and has units in this contract game
-      // If not provided, default to mentor (mentor is the host by default)
-      let finalHostId = hostId || mentorId;
-      if (hostId) {
-        const hostUser = await tx.user.findUnique({
-          where: { id: hostId },
-          select: { id: true, role: true }
-        });
-        if (!hostUser) {
-          throw new Error('Host user not found');
-        }
-
-        // VALIDATION: If host is not the mentor, they must have units in this contract game
-        // Mentor can always be host (will use system root if no units)
-        // But mentees must have units in the game to be selected as hosts
-        if (hostId !== mentorId) {
-          const hostUnitsCount = await tx.unit.count({
-            where: {
-              ownerId: hostId,
-              contractGameId: request.contractGameId
-            }
-          });
-
-          if (hostUnitsCount === 0) {
-            throw new Error('The selected host must have units in this contract game. Only mentees who are already playing can be selected as hosts.');
-          }
-        }
-
-        finalHostId = hostId;
-      }
-
-      // Update request status and store hostId (mentor decides who the host is)
-      const updatedRequest = await tx.purchaseRequest.update({
-        where: { id: requestId },
-        data: {
-          status: 'APPROVED',
-          approvedAt: new Date(),
-          hostId: finalHostId // Store the host ID that mentor selected
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          mentor: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          contractGame: {
-            select: {
-              id: true,
-              name: true,
-              downPayment: true
-            }
-          }
-        }
-      });
-
-      logger.info(`Purchase request ${requestId} approved by mentor ${mentorId}`);
-      return updatedRequest;
-    }, {
-      timeout: 20000 // allow more time for approval flow
-    });
-  }
-
-  /**
-   * Reject purchase request
-   */
-  static async rejectPurchase(requestId, mentorId, reason = null) {
-    return await database.getClient().$transaction(async (tx) => {
-      const request = await tx.purchaseRequest.findUnique({
-        where: { id: requestId }
-      });
-
-      if (!request) {
-        throw new Error('Purchase request not found');
-      }
-
-      if (request.mentorId !== mentorId) {
-        throw new Error('Only the assigned mentor can reject this request');
-      }
-
-      if (request.status !== 'PENDING') {
-        throw new Error(`Purchase request is already ${request.status}`);
-      }
-
-      // Update request status
-      const updatedRequest = await tx.purchaseRequest.update({
-        where: { id: requestId },
-        data: {
-          status: 'REJECTED'
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          mentor: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          contractGame: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      logger.info(`Purchase request ${requestId} rejected by mentor ${mentorId}${reason ? `: ${reason}` : ''}`);
-      return updatedRequest;
-    });
-  }
+  // NOTE: Mentor approval/rejection functions removed
+  // All purchase requests are now auto-approved and auto-placed
+  // No mentor intervention needed
 
   /**
    * Process placement for an approved purchase request
@@ -479,59 +280,67 @@ class PurchaseService {
       }
 
       const placedUnits = [];
-      const stage = 1; // Always start with stage 1
+      // Determine stage based on user's existing units
+      const userExistingUnits = await tx.unit.findMany({
+        where: {
+          ownerId: request.userId,
+          contractGameId: request.contractGameId,
+          isSystemRoot: false
+        },
+        select: {
+          stage: true
+        }
+      });
+      
+      let stage = 1; // Default to Stage 1
+      if (userExistingUnits.length > 0) {
+        const maxStage = Math.max(...userExistingUnits.map(u => u.stage));
+        if (maxStage >= 3) {
+          stage = 3; // User has Stage 3 units, so new purchase is Stage 3
+        } else if (maxStage >= 2) {
+          stage = 2; // User has Stage 2 units, so new purchase is Stage 2
+        }
+        // If maxStage is 1, stay at Stage 1
+      }
 
-      // Check if user is a mentor
-      const isMentor = request.user.role === 'MENTOR';
+      // Determine hostId for placement:
+      // - If request.hostId is set (user was invited), use that host
+      // - If request.hostId is null (no invite), use admin/system root
+      let hostId = request.hostId;
+      if (!hostId) {
+        // No host specified (no invite) - use system root (admin)
+        const admin = await tx.user.findFirst({
+          where: { role: 'ADMIN' },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true }
+        });
+        hostId = admin ? admin.id : null;
+      }
+
+      // OPTIMIZATION: Get all unit numbers at once (reduces database queries from N to 1)
+      const unitNumbers = await PlacementService.getNextUnitNumbers(
+        request.userId,
+        request.contractGameId,
+        stage,
+        request.unitCount,
+        tx // Pass transaction client
+      );
 
       // Place each unit
       for (let i = 0; i < request.unitCount; i++) {
-        // Get next unit number for this user
-        const unitNumber = await PlacementService.getNextUnitNumber(
-          request.userId,
-          request.contractGameId,
-          stage,
-          tx // Pass transaction client
-        );
+        const unitNumber = unitNumbers[i];
 
         try {
-          // SPECIAL HANDLING FOR MENTORS:
-          // Mentor units are placed under admin/system root (hostId = admin/system)
-          // Regular users: use hostId from request or default to mentorId
-          let hostId = null;
-          let mentorIdForPlacement = null;
-          
-          if (isMentor) {
-            // Mentors: place under system root, host is admin/system
-            // Use the hostId from request (which should be admin ID) or get admin
-            if (request.hostId) {
-              hostId = request.hostId; // Should be admin ID
-            } else {
-              // Fallback: get admin ID
-              const admin = await tx.user.findFirst({
-                where: { role: 'ADMIN' },
-                orderBy: { createdAt: 'asc' },
-                select: { id: true }
-              });
-              hostId = admin ? admin.id : null;
-            }
-            mentorIdForPlacement = null; // No mentor for mentors
-          } else {
-            // Regular users: use normal placement logic
-            hostId = request.hostId || request.mentorId;
-            mentorIdForPlacement = request.mentorId;
-          }
-          
           // Placement follows game rules:
-          // - Odd units (101, 103, etc.) → Placed under HOST's active unit (or system root for mentors)
-          // - Even units (102, 104, etc.) → Placed under OWNER's active unit (or system root for mentors)
-          // hostId is stored for tracking referral relationships
+          // - Odd units (101, 103, etc.) → Placed under HOST's active unit (or system root if no host)
+          // - Even units (102, 104, etc.) → Placed under OWNER's active unit
+          // hostId is stored for tracking referral relationships (inviter becomes host)
           const unit = await PlacementService.placeUnit(
             request.userId,
             unitNumber,
             request.contractGameId,
-            mentorIdForPlacement, // null for mentors
-            hostId, // admin ID for mentors (system root), mentor's choice for regular users
+            null, // mentorId no longer used for placement
+            hostId, // inviter ID if invited, admin/system root if not
             tx // Pass transaction client
           );
 
@@ -539,7 +348,7 @@ class PurchaseService {
           await tx.unit.update({
             where: { id: unit.id },
             data: {
-              hostId: hostId // admin ID for mentors, mentor's choice for regular users
+              hostId: hostId // inviter ID if invited, admin/system root if not
             }
           });
 
@@ -583,6 +392,48 @@ class PurchaseService {
         }
       });
 
+      // Create wallet transaction for the purchase (even in demo mode, for event log)
+      try {
+        // Get or create wallet (within transaction)
+        let wallet = await tx.wallet.findUnique({
+          where: { userId: request.userId }
+        });
+        
+        if (!wallet) {
+          wallet = await tx.wallet.create({
+            data: {
+              userId: request.userId,
+              balance: 0,
+              totalEarned: 0,
+              totalWithdrawn: 0
+            }
+          });
+        }
+        
+        // Get first unit name for description
+        const firstUnit = placedUnits[0];
+        const unitName = firstUnit ? `${firstUnit.unitName}` : 'units';
+        
+        // Create transaction record for event log (demo mode - no actual deduction)
+        await tx.transaction.create({
+          data: {
+            walletId: wallet.id,
+            userId: request.userId,
+            type: 'CONTRACT_PURCHASE',
+            amount: -Number(request.totalAmount), // Negative for payment
+            status: 'COMPLETED',
+            referenceId: request.contractGameId, // Link to contract game
+            referenceType: 'CONTRACT',
+            description: `Direct Advance Payment of ${Number(request.totalAmount).toFixed(2)} CAD made on ${new Date().toLocaleString()} against placement of Unit ${unitName} in Stage ${stage}`
+          }
+        });
+        
+        logger.info(`Created transaction record for purchase request ${requestId}`);
+      } catch (error) {
+        // Don't fail placement if transaction creation fails
+        logger.error(`Error creating transaction for purchase request ${requestId}:`, error);
+      }
+
       logger.info(`Placed ${placedUnits.length} units for purchase request ${requestId}`);
       return {
         request: updatedRequest,
@@ -592,13 +443,8 @@ class PurchaseService {
       maxWait: 60000, // 60 seconds max wait for transaction to start
       timeout: 60000  // 60 seconds timeout for transaction to complete (BFS search can be slow)
     }).then(async (result) => {
-      // Set cooldown period: 14 days from placement
-      await database.getClient().purchaseRequest.update({
-        where: { id: requestId },
-        data: {
-          cooldownEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days
-        }
-      });
+      // Cooldown was already set when purchase request was created (in createPurchaseRequest)
+      // No need to set it again here - it's already set to 14 days from purchase creation
 
       // Enhanced fulfillment checking: Check ALL affected units in the tree
       // This includes parent units and their ancestors

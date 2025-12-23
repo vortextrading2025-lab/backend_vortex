@@ -36,7 +36,9 @@ class ContractGameService {
       const game = await tx.contractGame.create({
         data: {
           name: name,
-          downPayment: downPayment,
+          downPayment: downPayment, // Stage 1 advance payment
+          advancePaymentStage2: payoutAmounts.advancePaymentStage2 || 1150.00, // Stage 2 advance payment
+          advancePaymentStage3: payoutAmounts.advancePaymentStage3 || 2600.00, // Stage 3 advance payment
           payoutStage1: payoutAmounts.payoutStage1,
           payoutStage2: payoutAmounts.payoutStage2,
           payoutStage3: payoutAmounts.payoutStage3,
@@ -45,30 +47,71 @@ class ContractGameService {
         }
       });
 
-      // Create system root unit for each stage (Stage 1, 2, 3)
-      // Only create root units - no mentor tree structure
-      const systemRoots = [];
-      for (let stage = 1; stage <= 3; stage++) {
-        const root = await tx.unit.create({
-          data: {
-            contractGameId: game.id,
-            ownerId: adminId, // System/admin owns the root
-            unitNumber: -stage, // Root units: -1, -2, -3 (unique per stage)
-            unitName: `SYSTEM_ROOT_S${stage}`, // System root identifier
-            stage: stage,
-            level: 0, // Root is at level 0
-            positionInLevel: 0,
-            isActive: true, // Root units are always active
-            isSystemRoot: true, // Mark as system root
-            parentUnitId: null, // Root has no parent
-            mentorId: null,
-            hostId: null
+      // Create ONE level 10 binary tree of system root units (shared across all stages)
+      // This creates a complete binary tree: level 0 (1 unit), level 1 (2 units), ... level 10 (1024 units)
+      // Total: 2^11 - 1 = 2047 system root units
+      // Stages are progression levels (Stage 1 → Stage 2 → Stage 3), not separate trees
+      // All system root units use stage: 1 as base, but the tree is shared for all stages
+      const systemRootUnits = [];
+      
+      // Level 0: Root unit (1 unit) - Use stage 1 as base
+      const root = await tx.unit.create({
+        data: {
+          contractGameId: game.id,
+          ownerId: adminId, // System/admin owns the root
+          unitNumber: -1, // Single root
+          unitName: `SYSTEM_ROOT_L0_P0`, // System root identifier
+          stage: 1, // Use stage 1 as base, but tree is shared
+          level: 0, // Root is at level 0
+          positionInLevel: 0,
+          isActive: true, // Root units are always active
+          isSystemRoot: true, // Mark as system root
+          parentUnitId: null, // Root has no parent
+          mentorId: null,
+          hostId: null
+        }
+      });
+      systemRootUnits.push({ level: 0, position: 0, unit: root });
+      
+      // Create levels 1-10 (binary tree structure)
+      // Each level has 2^level units
+      for (let level = 1; level <= 10; level++) {
+        const unitsInLevel = Math.pow(2, level);
+        const parentLevel = level - 1;
+        
+        for (let position = 0; position < unitsInLevel; position++) {
+          // Find parent: parent position = Math.floor(position / 2)
+          const parentPosition = Math.floor(position / 2);
+          const parentUnit = systemRootUnits.find(
+            u => u.level === parentLevel && u.position === parentPosition
+          );
+          
+          if (!parentUnit) {
+            throw new Error(`Parent unit not found for level ${level}, position ${position}`);
           }
-        });
-        systemRoots.push({ stage, root });
+          
+          const systemUnit = await tx.unit.create({
+            data: {
+              contractGameId: game.id,
+              ownerId: adminId,
+              unitNumber: -(level * 1000 + position + 1), // Unique negative numbers
+              unitName: `SYSTEM_ROOT_L${level}_P${position}`,
+              stage: 1, // All system roots use stage 1, but tree is shared
+              level: level,
+              positionInLevel: position,
+              isActive: true,
+              isSystemRoot: true,
+              parentUnitId: parentUnit.unit.id,
+              mentorId: null,
+              hostId: null
+            }
+          });
+          
+          systemRootUnits.push({ level: level, position: position, unit: systemUnit });
+        }
       }
 
-      logger.info(`Created contract game ${game.id}: ${name} with system root units only (3 root units for stages 1, 2, 3)`);
+      logger.info(`Created contract game ${game.id}: ${name} with level 10 binary tree system root units (${systemRootUnits.length} total system root units, shared for all stages)`);
 
       // Return game with createdBy relation
       const result = await tx.contractGame.findUnique({
@@ -89,6 +132,8 @@ class ContractGameService {
       return {
         ...result,
         downPayment: Number(result.downPayment),
+        advancePaymentStage2: Number(result.advancePaymentStage2 || 1150.00),
+        advancePaymentStage3: Number(result.advancePaymentStage3 || 2600.00),
         payoutStage1: Number(result.payoutStage1),
         payoutStage2: Number(result.payoutStage2),
         payoutStage3: Number(result.payoutStage3)
@@ -105,7 +150,7 @@ class ContractGameService {
    * Update contract game
    */
   static async updateContractGame(gameId, updates) {
-    const allowedUpdates = ['name', 'downPayment', 'payoutStage1', 'payoutStage2', 'payoutStage3', 'status'];
+    const allowedUpdates = ['name', 'downPayment', 'advancePaymentStage2', 'advancePaymentStage3', 'payoutStage1', 'payoutStage2', 'payoutStage3', 'status'];
     const updateData = {};
 
     for (const key of allowedUpdates) {
@@ -145,6 +190,8 @@ class ContractGameService {
     return {
       ...contractGame,
       downPayment: Number(contractGame.downPayment),
+      advancePaymentStage2: Number(contractGame.advancePaymentStage2 || 1150.00),
+      advancePaymentStage3: Number(contractGame.advancePaymentStage3 || 2600.00),
       payoutStage1: Number(contractGame.payoutStage1),
       payoutStage2: Number(contractGame.payoutStage2),
       payoutStage3: Number(contractGame.payoutStage3)
@@ -186,6 +233,8 @@ class ContractGameService {
     return {
       ...contractGame,
       downPayment: Number(contractGame.downPayment),
+      advancePaymentStage2: Number(contractGame.advancePaymentStage2 || 1150.00),
+      advancePaymentStage3: Number(contractGame.advancePaymentStage3 || 2600.00),
       payoutStage1: Number(contractGame.payoutStage1),
       payoutStage2: Number(contractGame.payoutStage2),
       payoutStage3: Number(contractGame.payoutStage3),
@@ -333,28 +382,29 @@ class ContractGameService {
           _count: { id: true }
         }),
         // Total payouts per game
-        database.getClient().payout.groupBy({
-          by: ['unit'],
+        // Use aggregate instead of groupBy since we need to filter by unit's contractGameId
+        database.getClient().payout.findMany({
           where: {
             unit: {
               contractGameId: { in: gameIds }
             },
             status: 'CREDITED'
           },
-          _sum: { amount: true }
-        }).then(async (results) => {
-          // Need to get contractGameId from unit
-          const unitIds = results.map(r => r.unit);
-          const units = await database.getClient().unit.findMany({
-            where: { id: { in: unitIds } },
-            select: { id: true, contractGameId: true }
-          });
-          const unitGameMap = new Map(units.map(u => [u.id, u.contractGameId]));
+          select: {
+            amount: true,
+            unit: {
+              select: {
+                contractGameId: true
+              }
+            }
+          }
+        }).then((payouts) => {
+          // Group by contractGameId and sum amounts
           const gamePayouts = {};
-          results.forEach(r => {
-            const gameId = unitGameMap.get(r.unit);
+          payouts.forEach(payout => {
+            const gameId = payout.unit.contractGameId;
             if (gameId) {
-              gamePayouts[gameId] = (gamePayouts[gameId] || 0) + Number(r._sum.amount || 0);
+              gamePayouts[gameId] = (gamePayouts[gameId] || 0) + Number(payout.amount || 0);
             }
           });
           return gamePayouts;
@@ -472,6 +522,8 @@ class ContractGameService {
       const gamesWithStats = contractGames.map((game) => ({
         ...game,
         downPayment: Number(game.downPayment),
+        advancePaymentStage2: Number(game.advancePaymentStage2 || 1150.00),
+        advancePaymentStage3: Number(game.advancePaymentStage3 || 2600.00),
         payoutStage1: Number(game.payoutStage1),
         payoutStage2: Number(game.payoutStage2),
         payoutStage3: Number(game.payoutStage3),

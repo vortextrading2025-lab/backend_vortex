@@ -8,25 +8,24 @@ const redisClient = require('../config/redis');
  */
 class PlacementService {
   /**
-   * Generate unit name from email and unit number
-   * Format: {email_prefix}_{unit_number}
-   * Example: john@example.com -> john_101
+   * Generate unit name from userId and unit number
+   * Format: {userId}_{unit_number}
+   * Example: userId "abc123" -> abc123_101
    */
-  static generateUnitName(email, unitNumber) {
-    const emailPrefix = email.split('@')[0];
-    return `${emailPrefix}_${unitNumber}`;
+  static generateUnitName(userId, unitNumber) {
+    return `${userId}_${unitNumber}`;
   }
 
   /**
    * Get next unit number for a user in a contract game and stage
    * Rules:
-   * - NEW user: Stage 1 starts at 101, Stage 2 at 2001, Stage 3 at 3001
+   * - NEW user: Stage 1 starts at 101, Stage 2 at 201, Stage 3 at 301
    * - SAME user, SAME stage: Continues sequentially (101-104, then 105, 106, 107...)
-   * - SAME user, DIFFERENT stage: Uses stage prefix (2001-2004, then 2005, 2006...)
+   * - SAME user, DIFFERENT stage: Uses stage prefix (201-204, then 205, 206...)
    * 
    * Stage 1: 101-104 for first 4, then 105, 106, 107... (continues sequentially)
-   * Stage 2: 2001-2004 for first 4, then 2005, 2006, 2007... (continues sequentially)
-   * Stage 3: 3001-3004 for first 4, then 3005, 3006, 3007... (continues sequentially)
+   * Stage 2: 201-204 for first 4, then 205, 206, 207... (continues sequentially)
+   * Stage 3: 301-304 for first 4, then 305, 306, 307... (continues sequentially)
    */
   static async getNextUnitNumber(userId, contractGameId, stage, tx = null) {
     const client = tx || database.getClient();
@@ -42,44 +41,71 @@ class PlacementService {
     if (!lastUnit) {
       // First unit in this stage for this user
       if (stage === 1) return 101;
-      if (stage === 2) return 2001;
-      if (stage === 3) return 3001;
+      if (stage === 2) return 201;
+      if (stage === 3) return 301;
     }
 
     const lastNumber = lastUnit.unitNumber;
     
     // Stage 1: First purchase 101-104, then continues 105, 106, 107...
     if (stage === 1) {
-      if (lastNumber >= 101 && lastNumber <= 104) {
-        // Still in first 4 units, continue sequentially
-        return lastNumber + 1 <= 104 ? lastNumber + 1 : 105;
-      }
-      // After 104, continue sequentially: 105, 106, 107...
+      // Continue sequentially from last number
       return lastNumber + 1;
     }
     
-    // Stage 2: First purchase 2001-2004, then continues 2005, 2006, 2007...
+    // Stage 2: First purchase 201-204, then continues 205, 206, 207...
     if (stage === 2) {
-      if (lastNumber >= 2001 && lastNumber <= 2004) {
-        // Still in first 4 units, continue sequentially
-        return lastNumber + 1 <= 2004 ? lastNumber + 1 : 2005;
-      }
-      // After 2004, continue sequentially: 2005, 2006, 2007...
+      // Continue sequentially from last number
       return lastNumber + 1;
     }
     
-    // Stage 3: First purchase 3001-3004, then continues 3005, 3006, 3007...
+    // Stage 3: First purchase 301-304, then continues 305, 306, 307...
     if (stage === 3) {
-      if (lastNumber >= 3001 && lastNumber <= 3004) {
-        // Still in first 4 units, continue sequentially
-        return lastNumber + 1 <= 3004 ? lastNumber + 1 : 3005;
-      }
-      // After 3004, continue sequentially: 3005, 3006, 3007...
+      // Continue sequentially from last number
       return lastNumber + 1;
     }
 
     // Fallback: increment normally
     return lastNumber + 1;
+  }
+
+  /**
+   * Get multiple unit numbers at once (optimized batch version)
+   * Returns an array of unit numbers for placing multiple units
+   * This reduces database queries from N queries to 1 query
+   */
+  static async getNextUnitNumbers(userId, contractGameId, stage, count, tx = null) {
+    const client = tx || database.getClient();
+    
+    // Get the last unit number for this user in this stage
+    const lastUnit = await client.unit.findFirst({
+      where: {
+        ownerId: userId,
+        contractGameId: contractGameId,
+        stage: stage
+      },
+      orderBy: { unitNumber: 'desc' }
+    });
+
+    let startNumber;
+    if (!lastUnit) {
+      // First units in this stage for this user
+      if (stage === 1) startNumber = 101;
+      else if (stage === 2) startNumber = 201;
+      else if (stage === 3) startNumber = 301;
+      else startNumber = 101; // Fallback
+    } else {
+      // Continue sequentially from last number
+      startNumber = lastUnit.unitNumber + 1;
+    }
+
+    // Generate array of sequential unit numbers
+    const unitNumbers = [];
+    for (let i = 0; i < count; i++) {
+      unitNumbers.push(startNumber + i);
+    }
+
+    return unitNumbers;
   }
 
   /**
@@ -102,19 +128,155 @@ class PlacementService {
 
   /**
    * Find system root unit for a contract game and stage
-   * Each contract game has one root unit per stage (owned by admin/system)
+   * Simple strategy: Find the deepest level (level 10) and place there
+   * Level 10 has 1024 units, so there's plenty of space
    */
   static async findSystemRoot(contractGameId, stage, tx = null) {
     const client = tx || database.getClient();
-    return await client.unit.findFirst({
+    
+    // Simple strategy: Find level 10 system root units (deepest level)
+    // Level 10 has 1024 units, so there's plenty of space
+    const maxLevel = 10;
+    
+    // Find system root units at the deepest level (level 10)
+    const deepestSystemRoots = await client.unit.findMany({
       where: {
         contractGameId: contractGameId,
-        stage: stage,
+        isSystemRoot: true,
+        level: maxLevel
+      },
+      orderBy: { positionInLevel: 'asc' }
+    });
+    
+    // Find the first system root unit at level 10 that has less than 2 direct children
+    for (const root of deepestSystemRoots) {
+      const directChildren = await client.unit.findMany({
+        where: {
+          parentUnitId: root.id,
+          level: root.level + 1 // Direct children would be at level 11
+        }
+      });
+      
+      if (directChildren.length < 2) {
+        logger.info(`Found available system root at level ${root.level}: ${root.unitName} (${directChildren.length}/2 children)`);
+        return root; // Found an available system root unit at deepest level
+      }
+    }
+    
+    // If all level 10 roots are full, try level 9, then 8, etc. (go up the tree)
+    for (let level = maxLevel - 1; level >= 0; level--) {
+      const systemRootsAtLevel = await client.unit.findMany({
+        where: {
+          contractGameId: contractGameId,
+          isSystemRoot: true,
+          level: level
+        },
+        orderBy: { positionInLevel: 'asc' }
+      });
+      
+      for (const root of systemRootsAtLevel) {
+        const directChildren = await client.unit.findMany({
+          where: {
+            parentUnitId: root.id,
+            level: root.level + 1
+          }
+        });
+        
+        if (directChildren.length < 2) {
+          logger.info(`Found available system root at level ${root.level}: ${root.unitName} (${directChildren.length}/2 children)`);
+          return root;
+        }
+      }
+    }
+    
+    // Fallback: Return level 0 root if nothing else found
+    const level0Root = await client.unit.findFirst({
+      where: {
+        contractGameId: contractGameId,
         isSystemRoot: true,
         level: 0,
         parentUnitId: null
       }
     });
+    
+    if (level0Root) {
+      logger.warn(`All system roots are full, using level 0 root as fallback: ${level0Root.unitName}`);
+      return level0Root;
+    }
+    
+    return null; // No system root found at all
+  }
+
+  /**
+   * Find an available unit for placement when system root is full
+   * Returns a unit that has space (less than 2 direct children)
+   * Priority: Active units first, then any unit with space
+   */
+  static async findAvailableUnitForPlacement(contractGameId, stage, tx = null) {
+    const client = tx || database.getClient();
+    
+    // First, try to find an active unit with space
+    const activeUnits = await client.unit.findMany({
+      where: {
+        contractGameId: contractGameId,
+        stage: stage,
+        isActive: true,
+        isSystemRoot: false
+      },
+      include: {
+        _count: {
+          select: {
+            childrenUnits: {
+              where: {
+                level: { // Only count direct children
+                  // We'll check this in a subquery
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { level: 'asc' } // Prefer units at lower levels
+    });
+
+    // Check each active unit for available space
+    for (const unit of activeUnits) {
+      const directChildren = await client.unit.findMany({
+        where: {
+          parentUnitId: unit.id,
+          level: unit.level + 1 // Only direct children
+        }
+      });
+      
+      if (directChildren.length < 2) {
+        return unit; // Found an active unit with space
+      }
+    }
+
+    // If no active unit has space, find any unit with space
+    const allUnits = await client.unit.findMany({
+      where: {
+        contractGameId: contractGameId,
+        stage: stage,
+        isSystemRoot: false
+      },
+      orderBy: { level: 'asc' } // Prefer units at lower levels
+    });
+
+    for (const unit of allUnits) {
+      const directChildren = await client.unit.findMany({
+        where: {
+          parentUnitId: unit.id,
+          level: unit.level + 1 // Only direct children
+        }
+      });
+      
+      if (directChildren.length < 2) {
+        return unit; // Found a unit with space
+      }
+    }
+
+    return null; // No available units found
   }
 
   /**
@@ -284,74 +446,224 @@ class PlacementService {
       if (unitNumber >= 3001) stage = 3;
 
       // Step 3: Find target active unit based on game placement rules
-      // SPECIAL: Mentors always place under system root (admin/system)
-      // Regular users follow normal placement rules
-      const isMentor = owner.role === 'MENTOR';
+      // Game Placement Rules:
+      // - Odd units (101, 103, 105, etc.) → ALWAYS place under HOST's active unit (or system root if no host)
+      // - Even units (102, 104, 106, etc.) → ALWAYS place under OWNER's (user's) first unit (101)
+      // 
+      // For non-invited users (hostId is null):
+      // 1. First try: System root (if exists and has space)
+      // 2. If system root is full: Find another available unit
+      // 3. Only if no system root exists: Use someone else's unit
       let targetActiveUnit = null;
       const isOddUnit = unitNumber % 2 === 1;
 
-      if (isMentor) {
-        // Mentors: ALWAYS place under system root (admin/system)
-        targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
-        if (!targetActiveUnit) {
-          throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+      if (isOddUnit) {
+        // Odd units (101, 103, etc.): ALWAYS place under HOST (or system root if no host)
+        // - Unit 101 → Under host (active)
+        // - Unit 103 → Under host (sibling of 101)
+        // - Unit 105 → Under host (sibling of 101, 103), etc.
+        // All odd units are siblings under the host
+          if (hostId) {
+            // Find host's units in order (101, 102, 103, 104, etc.)
+            const hostUnits = await client.unit.findMany({
+              where: {
+                ownerId: hostId,
+                contractGameId: contractGameId,
+                stage: stage,
+                isSystemRoot: false
+              },
+              orderBy: { unitNumber: 'asc' } // Order by unit number: 101, 102, 103, 104, etc.
+            });
+
+            if (hostUnits.length > 0) {
+              // Check each host unit in order to find the first one with available space
+              for (const hostUnit of hostUnits) {
+                const directChildren = await client.unit.findMany({
+                  where: {
+                    parentUnitId: hostUnit.id,
+                    level: hostUnit.level + 1 // Only direct children
+                  }
+                });
+
+                if (directChildren.length < 2) {
+                  // Found a host unit with available space
+                  targetActiveUnit = hostUnit;
+                  logger.info(`Placing odd unit ${unitNumber} under host's Unit ${hostUnit.unitNumber} (${hostUnit.unitName}) - has ${directChildren.length}/2 children`);
+                  break;
+                }
+              }
+
+              // If all host units are full, fall back to system root
+              if (!targetActiveUnit) {
+                logger.warn(`All host ${hostId} units are full in stage ${stage}, falling back to system root`);
+                const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
+                if (systemRoot) {
+                  const directChildren = await client.unit.findMany({
+                    where: {
+                      parentUnitId: systemRoot.id,
+                      level: systemRoot.level + 1
+                    }
+                  });
+                  
+                  if (directChildren.length < 2) {
+                    targetActiveUnit = systemRoot;
+                    logger.info(`Placing under system root (all host units full, system root has ${directChildren.length}/2 children)`);
+                  } else {
+                    // System root is full - find another available unit
+                    const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+                    if (availableUnit) {
+                      targetActiveUnit = availableUnit;
+                      logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
+                    } else {
+                      throw new Error(`All host units are full, system root is full, and no other available units found`);
+                    }
+                  }
+                } else {
+                  // No system root - find any available unit
+                  const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+                  if (availableUnit) {
+                    targetActiveUnit = availableUnit;
+                    logger.info(`No system root, placing under available unit ${availableUnit.unitName}`);
+                  } else {
+                    throw new Error(`All host units are full and no system root or available units found`);
+                  }
+                }
+              }
+            } else {
+              // Host has no units - fall back to system root
+              logger.warn(`Host ${hostId} has no units in stage ${stage}, falling back to system root`);
+              const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
+              if (systemRoot) {
+                const directChildren = await client.unit.findMany({
+                  where: {
+                    parentUnitId: systemRoot.id,
+                    level: systemRoot.level + 1
+                  }
+                });
+                
+                if (directChildren.length < 2) {
+                  targetActiveUnit = systemRoot;
+                  logger.info(`Placing under system root (host had no units, system root has ${directChildren.length}/2 children)`);
+                } else {
+                  // System root is full - find another available unit
+                  const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+                  if (availableUnit) {
+                    targetActiveUnit = availableUnit;
+                    logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
+                  } else {
+                    throw new Error(`Host has no units, system root is full, and no other available units found`);
+                  }
+                }
+              } else {
+                // No system root - find any available unit
+                const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+                if (availableUnit) {
+                  targetActiveUnit = availableUnit;
+                  logger.info(`No system root, placing under available unit ${availableUnit.unitName}`);
+                } else {
+                  throw new Error(`Host has no units and no system root or available units found`);
+                }
+              }
+            }
+          } else {
+            // User is NOT invited - system will place
+          // Priority: 1. System root (if exists and has space), 2. Another available unit, 3. Error if no root
+          const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
+          
+          if (systemRoot) {
+            // System root exists - check if it has space (less than 2 direct children)
+            const directChildren = await client.unit.findMany({
+              where: {
+                parentUnitId: systemRoot.id,
+                level: systemRoot.level + 1 // Only direct children
+              }
+            });
+            
+            if (directChildren.length < 2) {
+              // System root has space - use it
+              targetActiveUnit = systemRoot;
+              logger.info(`Placing under system root (has ${directChildren.length}/2 children)`);
+            } else {
+              // System root is full - find another available unit
+              const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+              if (availableUnit) {
+                targetActiveUnit = availableUnit;
+                logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
+              } else {
+                // No available units found - this shouldn't happen in a healthy system
+                throw new Error(`System root is full and no other available units found for placement`);
+              }
+            }
+          } else {
+            // No system root exists - find any available unit
+            const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+            if (availableUnit) {
+              targetActiveUnit = availableUnit;
+              logger.info(`No system root found, placing under available unit ${availableUnit.unitName}`);
+            } else {
+              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage} and no available units for placement. Contract game may not be initialized.`);
+            }
+          }
         }
       } else {
-        // Regular users: Follow normal placement rules
-        // Game Placement Rules:
-        // - Odd units (101, 103, 105, etc.) → ALWAYS place under HOST's active unit
-        // - Even units (102, 104, 106, etc.) → ALWAYS place under OWNER's (user's) active unit
-        // 
-        // Note: hostId is stored for tracking referral relationships,
-        // but placement target is ALWAYS determined by the odd/even rule
-        const finalHostId = hostId || mentorId;
+        // Even units (102, 104, etc.): ALWAYS place under OWNER's FIRST ODD UNIT (101)
+        // - Unit 102 → Under Unit 101 (child of 101)
+        // - Unit 104 → Under Unit 101 (child of 101, sibling of 102)
+        // - Unit 106 → Under Unit 101 (child of 101, sibling of 102, 104), etc.
+        // All even units are children of the first odd unit (101)
+        
+        // Find owner's first odd unit (101, 2001, or 3001)
+        const ownerFirstOddUnit = await client.unit.findFirst({
+          where: {
+            ownerId: ownerId,
+            contractGameId: contractGameId,
+            stage: stage,
+            isSystemRoot: false,
+            unitNumber: {
+              // First odd unit: 101, 2001, or 3001
+              gte: stage === 1 ? 101 : stage === 2 ? 2001 : 3001,
+              lte: stage === 1 ? 101 : stage === 2 ? 2001 : 3001
+            }
+          },
+          orderBy: { unitNumber: 'asc' }
+        });
 
-        if (!finalHostId) {
-          throw new Error('Host ID is required for unit placement');
-        }
+        if (ownerFirstOddUnit) {
+          // Check if Unit 101 has space (can have 2 children: 102 and 104)
+          const directChildren = await client.unit.findMany({
+            where: {
+              parentUnitId: ownerFirstOddUnit.id,
+              level: ownerFirstOddUnit.level + 1
+            }
+          });
 
-        if (isOddUnit) {
-          // Odd units (101, 103, etc.): ALWAYS place under HOST's active unit
-          targetActiveUnit = await this.findActiveUnit(finalHostId, contractGameId, stage, client);
-          
-          // If host has no active unit, use system root
-          if (!targetActiveUnit) {
-            targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
-            if (!targetActiveUnit) {
-              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
+          if (directChildren.length < 2) {
+            targetActiveUnit = ownerFirstOddUnit;
+            logger.info(`Placing even unit ${unitNumber} under owner's first odd unit ${ownerFirstOddUnit.unitNumber} (${ownerFirstOddUnit.unitName}) - has ${directChildren.length}/2 children`);
+          } else {
+            // Unit 101 is full - this shouldn't happen if placement rules are followed correctly
+            // Fall back to finding any available unit under owner's units
+            logger.warn(`Owner's first odd unit ${ownerFirstOddUnit.unitNumber} is full, finding alternative placement`);
+            const ownerActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
+            if (ownerActiveUnit) {
+              targetActiveUnit = ownerActiveUnit;
+            } else {
+              // Last resort: use system root
+              targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
             }
           }
         } else {
-          // Even units (102, 104, etc.): ALWAYS place under OWNER's FIRST unit (101)
-          // IMPORTANT: Even units should go under the FIRST unit (101), not the active unit
-          // This ensures 102 and 104 both go under 101, not 102 going under 101 and 104 going under 102
-          const ownerFirstUnit = await client.unit.findFirst({
-            where: {
-              ownerId: ownerId,
-              contractGameId: contractGameId,
-              stage: stage,
-              isSystemRoot: false,
-              unitNumber: {
-                gte: stage === 1 ? 101 : stage === 2 ? 2001 : 3001,
-                lte: stage === 1 ? 104 : stage === 2 ? 2004 : 3004
-              }
-            },
-            orderBy: { unitNumber: 'asc' } // Get first unit (101, 2001, or 3001)
-          });
-          
-          // Use first unit (101) if it exists, otherwise use active unit as fallback
-          if (ownerFirstUnit) {
-            targetActiveUnit = ownerFirstUnit;
-          } else {
-            targetActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
-          }
-          
-          // If owner has no units at all, use system root as fallback
+          // Owner has no odd unit yet - this shouldn't happen (odd units are placed first)
+          // Fall back to system root
+          logger.warn(`Owner ${ownerId} has no first odd unit for even unit ${unitNumber}, falling back to system root`);
+          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
+        }
+        
+        // If owner has no units at all, use system root as fallback
+        if (!targetActiveUnit) {
+          targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
           if (!targetActiveUnit) {
-            targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
-            if (!targetActiveUnit) {
-              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
-            }
+            throw new Error(`No system root found for contract game ${contractGameId} stage ${stage}. Contract game may not be initialized.`);
           }
         }
       }
@@ -365,8 +677,8 @@ class PlacementService {
       // Step 5: Find vacant position (bottom-to-top search)
       const vacantPosition = await this.findVacantPosition(actualParentUnitId, vacantLevel, client);
 
-      // Generate unit name
-      const unitName = this.generateUnitName(owner.email, unitNumber);
+      // Generate unit name using userId instead of email
+      const unitName = this.generateUnitName(ownerId, unitNumber);
 
       // Check if unit name already exists (shouldn't happen, but safety check)
       const existingUnit = await client.unit.findUnique({
@@ -383,17 +695,9 @@ class PlacementService {
       }
 
       // Determine hostId for unit creation
-      // For mentors: hostId is admin ID (system root)
-      // For regular users: hostId is from parameter (mentor's choice)
-      let unitHostId = null;
-      if (isMentor) {
-        // For mentors, hostId should be admin ID (system root)
-        unitHostId = hostId || null; // Should be admin ID from processPlacement
-      } else {
-        // For regular users, use hostId from parameter
-        const finalHostId = hostId || mentorId;
-        unitHostId = finalHostId || null;
-      }
+      // hostId is the inviter (if user was invited) or admin/system root (if not invited)
+      // If hostId is null, it means system root (admin) - but we'll store it as null for clarity
+      const unitHostId = hostId || null;
 
       // Create the unit
       // Use actualParentUnitId (which may be a child of targetActiveUnit if targetActiveUnit is full)
@@ -409,13 +713,13 @@ class PlacementService {
           positionInLevel: vacantPosition,
           isActive: false, // New units are not active by default
           isCompleted: false,
-          mentorId: mentorId || null, // Track which mentor placed this unit (null for mentors)
-          hostId: unitHostId, // Admin ID for mentors (system root), mentor's choice for regular users
+          mentorId: null, // No longer used - mentors don't place units
+          hostId: unitHostId, // Inviter ID if invited, admin/system root if not (stored as null)
           isSystemRoot: false
         }
       });
 
-      logger.info(`Placed unit ${unitName} (${unitNumber}) for user ${ownerId} at level ${vacantLevel}, position ${vacantPosition}${isMentor ? ' (mentor - under system root)' : ''}`);
+      logger.info(`Placed unit ${unitName} (${unitNumber}) for user ${ownerId} at level ${vacantLevel}, position ${vacantPosition} (hostId: ${unitHostId || 'system root'})`);
 
       return unit;
     };
@@ -515,6 +819,53 @@ class PlacementService {
     const MAX_DEPTH = 20; // Maximum depth to prevent infinite loops
     const unitMap = new Map();
     
+    // Fetch all active purchase requests with cooldown for the owner to avoid N+1 queries
+    const activePurchaseRequests = await client.purchaseRequest.findMany({
+      where: {
+        userId: rootUnit.ownerId,
+        contractGameId: rootUnit.contractGameId,
+        status: { in: ['APPROVED', 'PLACED'] },
+        cooldownEndsAt: { not: null },
+        refundedAt: null
+      },
+      select: {
+        id: true,
+        cooldownEndsAt: true,
+        placedAt: true,
+        approvedAt: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Helper function to get cooldown info for a unit
+    const getCooldownInfo = (unit) => {
+      if (unit.isSystemRoot) return null;
+      
+      const now = new Date();
+      
+      // Find purchase request that created this unit by matching creation time
+      for (const request of activePurchaseRequests) {
+        const timeWindowStart = new Date(unit.createdAt.getTime() - 30 * 60 * 1000); // 30 min before
+        const timeWindowEnd = new Date(unit.createdAt.getTime() + 30 * 60 * 1000); // 30 min after
+        
+        const requestTime = request.placedAt || request.approvedAt || request.createdAt;
+        if (requestTime >= timeWindowStart && requestTime <= timeWindowEnd) {
+          if (!request.cooldownEndsAt) continue;
+          
+          const cooldownEndsAt = new Date(request.cooldownEndsAt);
+          if (now > cooldownEndsAt) continue; // Cooldown expired
+          
+          return {
+            cooldownEndsAt: cooldownEndsAt.toISOString(),
+            isInCooldown: true
+          };
+        }
+      }
+      
+      return null;
+    };
+    
     // Helper function to recursively fetch children
     const fetchChildren = async (parentId, depth = 0) => {
       if (depth > MAX_DEPTH) return;
@@ -539,10 +890,15 @@ class PlacementService {
         ]
       });
 
-      // Store children in unit map
+      // Store children in unit map and add cooldown info
       children.forEach(child => {
         if (!unitMap.has(child.id)) {
-          unitMap.set(child.id, { ...child, childrenUnits: [] });
+          const cooldownInfo = getCooldownInfo(child);
+          unitMap.set(child.id, { 
+            ...child, 
+            childrenUnits: [],
+            cooldownInfo: cooldownInfo
+          });
         }
       });
 
@@ -553,7 +909,12 @@ class PlacementService {
     };
 
     // Start building from root unit
-    unitMap.set(rootUnit.id, { ...rootUnit, childrenUnits: [] });
+    const rootCooldownInfo = getCooldownInfo(rootUnit);
+    unitMap.set(rootUnit.id, { 
+      ...rootUnit, 
+      childrenUnits: [],
+      cooldownInfo: rootCooldownInfo
+    });
     await fetchChildren(unitId, 0);
 
     // Build parent-child relationships
@@ -567,12 +928,12 @@ class PlacementService {
       }
     });
 
-    // Sort children by positionInLevel (descending) and unitNumber
+    // Sort children by positionInLevel (ascending - left to right) and unitNumber
     unitMap.forEach(unit => {
       if (unit.childrenUnits && unit.childrenUnits.length > 0) {
         unit.childrenUnits.sort((a, b) => {
           if (a.positionInLevel !== b.positionInLevel) {
-            return b.positionInLevel - a.positionInLevel; // Descending order
+            return a.positionInLevel - b.positionInLevel; // Ascending order (left to right)
           }
           return a.unitNumber - b.unitNumber;
         });

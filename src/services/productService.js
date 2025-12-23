@@ -21,24 +21,50 @@ const getPrisma = () => {
 const createProductSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().optional(),
-  price: z.number().positive(),
+  costPrice: z.number().positive(),
+  mrp: z.number().positive(),
+  sellingPrice: z.number().positive(),
   stock: z.number().int().min(0),
   categoryId: z.string(),
   subcategoryId: z.string(),
   sku: z.string().optional(),
   currency: z.string().default('CAD'),
+}).refine((data) => data.sellingPrice <= data.mrp, {
+  message: "Selling price cannot exceed MRP",
+  path: ["sellingPrice"],
+}).refine((data) => data.costPrice <= data.sellingPrice, {
+  message: "Cost price cannot exceed selling price",
+  path: ["costPrice"],
 });
 
 const updateProductSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().optional(),
-  price: z.number().positive().optional(),
+  costPrice: z.number().positive().optional(),
+  mrp: z.number().positive().optional(),
+  sellingPrice: z.number().positive().optional(),
   stock: z.number().int().min(0).optional(),
   categoryId: z.string().optional(),
   subcategoryId: z.string().optional(),
   sku: z.string().optional(),
   isActive: z.boolean().optional(),
   attributes: z.record(z.any()).optional(), // Category-specific attributes (JSON object)
+}).refine((data) => {
+  if (data.sellingPrice !== undefined && data.mrp !== undefined) {
+    return data.sellingPrice <= data.mrp;
+  }
+  return true;
+}, {
+  message: "Selling price cannot exceed MRP",
+  path: ["sellingPrice"],
+}).refine((data) => {
+  if (data.costPrice !== undefined && data.sellingPrice !== undefined) {
+    return data.costPrice <= data.sellingPrice;
+  }
+  return true;
+}, {
+  message: "Cost price cannot exceed selling price",
+  path: ["costPrice"],
 });
 
 class ProductService {
@@ -159,7 +185,9 @@ class ProductService {
         data: {
           name: validatedData.name,
           description: validatedData.description,
-          price: validatedData.price,
+          costPrice: validatedData.costPrice,
+          mrp: validatedData.mrp,
+          sellingPrice: validatedData.sellingPrice,
           stock: validatedData.stock,
           categoryId: validatedData.categoryId,
           subcategoryId: validatedData.subcategoryId,
@@ -176,7 +204,9 @@ class ProductService {
           subcategoryId: true,
           name: true,
           description: true,
-          price: true,
+          costPrice: true,
+          mrp: true,
+          sellingPrice: true,
           currency: true,
           stock: true,
           images: true,
@@ -236,7 +266,9 @@ class ProductService {
         subcategoryId: true,
         name: true,
         description: true,
-        price: true,
+        costPrice: true,
+        mrp: true,
+        sellingPrice: true,
         currency: true,
         stock: true,
         images: true,
@@ -329,7 +361,9 @@ class ProductService {
           id: true,
           name: true,
           description: true,
-          price: true,
+          costPrice: true,
+          mrp: true,
+          sellingPrice: true,
           currency: true,
           stock: true,
           images: true,
@@ -495,7 +529,9 @@ class ProductService {
           subcategoryId: true,
           name: true,
           description: true,
-          price: true,
+          costPrice: true,
+          mrp: true,
+          sellingPrice: true,
           currency: true,
           stock: true,
           images: true,
@@ -586,7 +622,9 @@ class ProductService {
       select: {
         id: true,
         name: true,
-        price: true,
+        costPrice: true,
+        mrp: true,
+        sellingPrice: true,
         stock: true,
         category: {
           select: {

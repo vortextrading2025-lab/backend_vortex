@@ -5,6 +5,7 @@ const WalletService = require('../modules/wallet/walletService');
 class RefundService {
   /**
    * Check if purchase request is eligible for refund (within 14-day cooldown)
+   * Allows cancellation of both APPROVED (units being placed) and PLACED (units placed) requests
    */
   static async isEligibleForRefund(requestId) {
     const request = await database.getClient().purchaseRequest.findUnique({
@@ -18,8 +19,9 @@ class RefundService {
       throw new Error('Purchase request not found');
     }
 
-    if (request.status !== 'PLACED') {
-      throw new Error('Only PLACED purchase requests can be refunded');
+    // Allow cancellation of APPROVED (units being placed) and PLACED (units placed) requests
+    if (request.status !== 'APPROVED' && request.status !== 'PLACED') {
+      throw new Error(`Only APPROVED or PLACED purchase requests can be cancelled. Current status: ${request.status}`);
     }
 
     if (request.refundedAt) {
@@ -66,25 +68,56 @@ class RefundService {
       await this.isEligibleForRefund(requestId);
 
       // Get all units for this request
-      const units = await tx.unit.findMany({
+      // For APPROVED requests: find units created around the request creation time
+      // For PLACED requests: find units created around the placement time
+      const timeReference = request.placedAt || request.createdAt;
+      const timeWindowStart = new Date(timeReference.getTime() - 5 * 60 * 1000); // 5 minutes before
+      const timeWindowEnd = new Date(timeReference.getTime() + 60 * 60 * 1000); // 1 hour after (to catch all units)
+
+      let units = await tx.unit.findMany({
         where: {
           ownerId: userId,
           contractGameId: request.contractGameId,
+          isSystemRoot: false,
           createdAt: {
-            gte: request.placedAt,
-            lte: new Date(request.placedAt.getTime() + 60000) // Within 1 minute of placement
+            gte: timeWindowStart,
+            lte: timeWindowEnd
           }
-        }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: request.unitCount // Limit to expected unit count
       });
+
+      // If no units found with time window, try to find by matching unit count and recent creation
+      if (units.length === 0) {
+        // Find the most recent units for this user in this game
+        units = await tx.unit.findMany({
+          where: {
+            ownerId: userId,
+            contractGameId: request.contractGameId,
+            isSystemRoot: false
+          },
+          orderBy: { createdAt: 'desc' },
+          take: request.unitCount // Limit to expected unit count
+        });
+        
+        // Only take units that were created after the request was created
+        units = units.filter(unit => new Date(unit.createdAt) >= new Date(request.createdAt));
+      }
 
       const unitIds = units.map(u => u.id);
 
-      // Delete all units
-      await tx.unit.deleteMany({
-        where: {
-          id: { in: unitIds }
-        }
-      });
+      // Delete all units associated with this request
+      if (unitIds.length > 0) {
+        await tx.unit.deleteMany({
+          where: {
+            id: { in: unitIds }
+          }
+        });
+        logger.info(`Deleted ${unitIds.length} units for refund of request ${requestId}`);
+      } else {
+        logger.warn(`No units found to delete for refund of request ${requestId} (status: ${request.status})`);
+      }
 
       // Refund to wallet
       await WalletService.addToWallet(
