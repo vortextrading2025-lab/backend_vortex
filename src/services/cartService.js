@@ -23,7 +23,9 @@ class CartService {
             id: true,
             name: true,
             description: true,
-            price: true,
+            sellingPrice: true,
+            costPrice: true,
+            mrp: true,
             currency: true,
             stock: true,
             images: true,
@@ -166,7 +168,9 @@ class CartService {
             id: true,
             name: true,
             description: true,
-            price: true,
+            sellingPrice: true,
+            costPrice: true,
+            mrp: true,
             currency: true,
             stock: true,
             images: true,
@@ -245,7 +249,9 @@ class CartService {
             id: true,
             name: true,
             description: true,
-            price: true,
+            sellingPrice: true,
+            costPrice: true,
+            mrp: true,
             currency: true,
             stock: true,
             images: true,
@@ -329,7 +335,7 @@ class CartService {
 
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = items.reduce(
-      (sum, item) => sum + Number(item.product.price) * item.quantity,
+      (sum, item) => sum + Number(item.product.sellingPrice || 0) * item.quantity,
       0
     );
 

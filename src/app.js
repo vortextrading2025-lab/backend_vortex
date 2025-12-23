@@ -183,6 +183,7 @@ app.use('/api/vendor/products', require('./modules/vendor/products').router);
 app.use('/api/vendor/orders', require('./modules/orders').router);
 app.use('/api/vendor/settlements', require('./modules/orders').router);
 app.use('/api/user/orders', require('./modules/user/orders').router);
+app.use('/api/user/bonus', require('./modules/user/bonus'));
 app.use('/api/products', require('./modules/products').router);
 app.use('/api/orders', require('./modules/orders').router);
 // Cart and wishlist routes

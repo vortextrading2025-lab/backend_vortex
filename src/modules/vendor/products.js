@@ -88,7 +88,9 @@ router.post(
       const productData = {
         name: req.body.name,
         description: req.body.description || null,
-        price: parseFloat(req.body.price),
+        costPrice: parseFloat(req.body.costPrice),
+        mrp: parseFloat(req.body.mrp),
+        sellingPrice: parseFloat(req.body.sellingPrice),
         stock: parseInt(req.body.stock, 10),
         categoryId: req.body.categoryId,
         subcategoryId: req.body.subcategoryId,

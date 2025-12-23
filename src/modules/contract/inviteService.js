@@ -21,21 +21,47 @@ class InviteService {
       customCode = null // Optional custom code
     } = options;
 
-    // Check if user has an active unit (required to invite others)
-    const ContractService = require('./contractService');
-    const activeUnit = await ContractService.findActiveUnit(inviterId);
-    
-    if (!activeUnit) {
-      throw new Error('You must have an active unit to create invite links. Please purchase units first.');
-    }
-
-    // Check if active unit has space (max 2 children per parent in binary tree)
-    const childrenCount = await database.getClient().contract.count({
-      where: { parentId: activeUnit.id }
+    // Check if user has any odd unit (101, 103, 105, etc.) with available space
+    // Odd units are the ones that can receive invites (placed under host's active unit)
+    const userUnits = await database.getClient().unit.findMany({
+      where: {
+        ownerId: inviterId,
+        isSystemRoot: false
+      }
     });
 
-    if (childrenCount >= 2) {
-      throw new Error('Your active unit already has 2 children (maximum allowed). You cannot invite more people until one of your units becomes active.');
+    if (userUnits.length === 0) {
+      throw new Error('You must have at least one unit to create invite links. Please purchase units first.');
+    }
+
+    // Filter to get odd units (101, 103, 105, etc.) - these are the ones that can receive invites
+    const oddUnits = userUnits.filter(unit => {
+      const unitNum = unit.unitNumber || 0;
+      return unitNum % 2 === 1; // Odd numbers: 101, 103, 105, etc.
+    });
+
+    if (oddUnits.length === 0) {
+      throw new Error('You must have at least one odd unit (101, 103, 105, etc.) to create invite links. Odd units are required to receive invites.');
+    }
+
+    // Find the first odd unit with available space (less than 2 children)
+    let availableUnit = null;
+    for (const unit of oddUnits) {
+      // Count direct children of this unit
+      const childrenCount = await database.getClient().unit.count({
+        where: {
+          parentUnitId: unit.id
+        }
+      });
+      
+      if (childrenCount < 2) {
+        availableUnit = unit;
+        break; // Found a unit with space
+      }
+    }
+
+    if (!availableUnit) {
+      throw new Error('You must have at least one unit (101, 103, 105, etc.) with available space to create invite links. All your odd units are full (2/2 children each).');
     }
 
     // Generate unique invite code
@@ -213,6 +239,99 @@ class InviteService {
 
     logger.info(`Invite link ${inviteLink.inviteCode} deactivated by user ${userId}`);
     return updatedLink;
+  }
+
+  /**
+   * Check if a user was invited (has an active invite link)
+   * @param {string} userId - User ID to check
+   * @returns {Promise<boolean>} - True if user was invited, false otherwise
+   */
+  static async wasUserInvited(userId) {
+    const inviteLink = await database.getClient().inviteLink.findFirst({
+      where: {
+        invitedUserId: userId,
+        isActive: true
+      }
+    });
+
+    return !!inviteLink;
+  }
+
+  /**
+   * Get inviter details for a user
+   * @param {string} userId - User ID to get inviter for
+   * @returns {Promise<Object|null>} - Inviter details or null if not invited
+   */
+  static async getInviterForUser(userId) {
+    const inviteLink = await database.getClient().inviteLink.findFirst({
+      where: {
+        invitedUserId: userId,
+        isActive: true
+      },
+      include: {
+        inviter: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      },
+      orderBy: { lastUsedAt: 'desc' } // Get most recent invite
+    });
+
+    if (!inviteLink || !inviteLink.inviter) {
+      return null;
+    }
+
+    return {
+      inviter: inviteLink.inviter,
+      inviteCode: inviteLink.inviteCode,
+      invitedAt: inviteLink.lastUsedAt || inviteLink.createdAt
+    };
+  }
+
+  /**
+   * Get invitation status for a user
+   * @param {string} userId - User ID to check
+   * @returns {Promise<Object>} - Invitation status information
+   */
+  static async getInvitationStatus(userId) {
+    const inviteLink = await database.getClient().inviteLink.findFirst({
+      where: {
+        invitedUserId: userId,
+        isActive: true
+      },
+      include: {
+        inviter: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      },
+      orderBy: { lastUsedAt: 'desc' }
+    });
+
+    if (!inviteLink) {
+      return {
+        wasInvited: false,
+        inviter: null,
+        inviteCode: null,
+        invitedAt: null
+      };
+    }
+
+    return {
+      wasInvited: true,
+      inviter: inviteLink.inviter,
+      inviteCode: inviteLink.inviteCode,
+      invitedAt: inviteLink.lastUsedAt || inviteLink.createdAt,
+      inviteLinkId: inviteLink.id
+    };
   }
 }
 
