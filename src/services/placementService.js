@@ -284,43 +284,51 @@ class PlacementService {
    * Returns an object with { parentUnitId, level } where a new unit should be placed
    * Binary tree rule: Each parent can only have 2 direct children at parent.level + 1
    * If that level is full, recursively find space under one of the children
+   * Only searches in units owned by the same owner as the starting parent unit
    */
-  static async findVacantLevel(parentUnitId, tx = null) {
+  static async findVacantLevel(parentUnitId, tx = null, requiredOwnerId = null) {
     const client = tx || database.getClient();
     
-    // Get parent unit to know starting level
+    // Get parent unit to know starting level and owner
     const parentUnit = await client.unit.findUnique({
       where: { id: parentUnitId },
-      select: { level: true }
+      select: { level: true, ownerId: true }
     });
 
     if (!parentUnit) {
       throw new Error('Parent unit not found');
     }
 
-    // Get DIRECT children only (at parent.level + 1)
+    // Use the parent unit's ownerId to restrict search to same-owner units
+    const ownerIdToMatch = requiredOwnerId || parentUnit.ownerId;
+
+    // Get ALL direct children (at parent.level + 1) - check total count first
     // In a binary tree, a parent can only have direct children at the immediate next level
-    const directChildren = await client.unit.findMany({
+    const allDirectChildren = await client.unit.findMany({
       where: {
         parentUnitId: parentUnitId,
         level: parentUnit.level + 1  // Only check immediate children
       },
       select: {
         id: true,
-        level: true
+        level: true,
+        ownerId: true
       },
       orderBy: { positionInLevel: 'asc' } // Left-to-right order
     });
 
-    // If parent has less than 2 direct children, place at immediate next level under this parent
-    if (directChildren.length < 2) {
+    // If parent has less than 2 direct children total, place at immediate next level under this parent
+    if (allDirectChildren.length < 2) {
       return {
         parentUnitId: parentUnitId,
         level: parentUnit.level + 1
       };
     }
 
-    // If parent has 2 direct children, find a child with space
+    // If parent has 2 direct children, filter to only same-owner children for deeper search
+    const directChildren = allDirectChildren.filter(c => c.ownerId === ownerIdToMatch);
+
+    // If parent has 2 direct children owned by same owner, find a child with space
     // Use iterative BFS (breadth-first search) to find the first available spot
     // This avoids deep recursion and transaction timeouts
     // Store both ID and level to avoid extra queries
@@ -338,11 +346,12 @@ class PlacementService {
       }
       visited.add(currentParent.id);
 
-      // Get direct children of current parent (batch query)
+      // Get direct children of current parent (batch query) that are owned by the same owner
       const currentChildren = await client.unit.findMany({
         where: {
           parentUnitId: currentParent.id,
-          level: currentParent.level + 1
+          level: currentParent.level + 1,
+          ownerId: ownerIdToMatch  // Only consider units owned by the same owner
         },
         select: {
           id: true,
@@ -351,7 +360,7 @@ class PlacementService {
         orderBy: { positionInLevel: 'asc' }
       });
 
-      // If current parent has less than 2 children, place here
+      // If current parent has less than 2 children owned by same owner, place here
       if (currentChildren.length < 2) {
         return {
           parentUnitId: currentParent.id,
@@ -359,7 +368,7 @@ class PlacementService {
         };
       }
 
-      // If current parent has 2 children, add both to queue for further search
+      // If current parent has 2 children owned by same owner, add both to queue for further search
       // This ensures we check both subtrees (left-to-right)
       if (currentChildren.length >= 2) {
         queue.push(...currentChildren); // Already have level info, no need to map
@@ -679,7 +688,8 @@ class PlacementService {
 
       // Step 4: Find vacant level and parent (left-to-right search)
       // This returns { parentUnitId, level } - the actual parent where unit should be placed
-      const vacantPlacement = await this.findVacantLevel(targetActiveUnit.id, client);
+      // Pass ownerId to ensure we only search in units owned by the same owner
+      const vacantPlacement = await this.findVacantLevel(targetActiveUnit.id, client, ownerId);
       const actualParentUnitId = vacantPlacement.parentUnitId;
       const vacantLevel = vacantPlacement.level;
 
