@@ -344,11 +344,16 @@ class PurchaseService {
             tx // Pass transaction client
           );
 
-          // Ensure hostId is set correctly
+          // Set cooldown period (14 days from now) and link to purchase request
+          const cooldownEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days from now
+          
+          // Ensure hostId is set correctly, set cooldown, and link to purchase request
           await tx.unit.update({
             where: { id: unit.id },
             data: {
-              hostId: hostId // inviter ID if invited, admin/system root if not
+              hostId: hostId, // inviter ID if invited, admin/system root if not
+              cooldownEndsAt: cooldownEndsAt, // Each unit has its own 14-day cooldown
+              purchaseRequestId: request.id // Link unit to purchase request for tracking
             }
           });
 

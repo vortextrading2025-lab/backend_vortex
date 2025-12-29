@@ -224,30 +224,34 @@ model ContractGame {
 }
 
 model Unit {
-  id              String       @id @default(cuid())
-  contractGameId  String
-  ownerId         String
-  unitNumber      Int
-  unitName        String
-  stage           Int          @default(1)
-  isActive        Boolean      @default(false)
-  isCompleted     Boolean      @default(false)
-  parentUnitId    String?
-  level           Int
-  positionInLevel Int
-  completedAt     DateTime?
-  mentorId        String?
-  hostId          String?
-  isSystemRoot    Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  payouts         Payout[]
-  contractGame    ContractGame @relation(fields: [contractGameId], references: [id], onDelete: Cascade)
-  host            User?        @relation("UnitHost", fields: [hostId], references: [id])
-  mentor          User?        @relation("UnitMentor", fields: [mentorId], references: [id])
-  owner           User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  parentUnit      Unit?        @relation("UnitTree", fields: [parentUnitId], references: [id], onDelete: Cascade)
-  childrenUnits   Unit[]       @relation("UnitTree")
+  id                String          @id @default(cuid())
+  contractGameId    String
+  ownerId           String
+  unitNumber        Int
+  unitName          String
+  stage             Int             @default(1)
+  isActive          Boolean         @default(false)
+  isCompleted       Boolean         @default(false)
+  parentUnitId      String?
+  level             Int
+  positionInLevel   Int
+  completedAt       DateTime?
+  mentorId          String?
+  hostId            String?
+  isSystemRoot      Boolean         @default(false)
+  cooldownEndsAt    DateTime?       // 14 days from placement (per unit)
+  refundedAt        DateTime?       // When this unit was cancelled/refunded
+  purchaseRequestId String?         // Link to purchase request (for tracking)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  payouts           Payout[]
+  contractGame      ContractGame    @relation(fields: [contractGameId], references: [id], onDelete: Cascade)
+  host              User?           @relation("UnitHost", fields: [hostId], references: [id])
+  mentor            User?           @relation("UnitMentor", fields: [mentorId], references: [id])
+  owner             User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parentUnit        Unit?           @relation("UnitTree", fields: [parentUnitId], references: [id], onDelete: Cascade)
+  childrenUnits     Unit[]          @relation("UnitTree")
+  purchaseRequest   PurchaseRequest? @relation("UnitPurchaseRequest", fields: [purchaseRequestId], references: [id])
 
   @@unique([contractGameId, ownerId, unitNumber])
   @@unique([contractGameId, unitName])
@@ -259,6 +263,8 @@ model Unit {
   @@index([mentorId])
   @@index([hostId])
   @@index([contractGameId, isSystemRoot, stage])
+  @@index([cooldownEndsAt])
+  @@index([purchaseRequestId])
   @@map("units")
 }
 
@@ -275,12 +281,13 @@ model PurchaseRequest {
   updatedAt      DateTime              @updatedAt
   approvedAt     DateTime?
   placedAt       DateTime?
-  cooldownEndsAt DateTime? // NEW: 14 days from placedAt
-  refundedAt     DateTime? // NEW: When refund was processed
+  cooldownEndsAt DateTime? // NEW: 14 days from placedAt (kept for backward compatibility)
+  refundedAt     DateTime? // NEW: When refund was processed (kept for backward compatibility)
   contractGame   ContractGame          @relation(fields: [contractGameId], references: [id], onDelete: Cascade)
   mentor         User                  @relation("MentorPurchaseRequests", fields: [mentorId], references: [id], onDelete: Cascade)
   user           User                  @relation("UserPurchaseRequests", fields: [userId], references: [id], onDelete: Cascade)
   host           User?                 @relation("PurchaseRequestHost", fields: [hostId], references: [id])
+  units          Unit[]                @relation("UnitPurchaseRequest") // Units created from this purchase request
 
   @@index([mentorId, status])
   @@index([userId, status])
