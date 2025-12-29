@@ -458,11 +458,53 @@ class PlacementService {
       const isOddUnit = unitNumber % 2 === 1;
 
       if (isOddUnit) {
-        // Odd units (101, 103, etc.): ALWAYS place under HOST (or system root if no host)
-        // - Unit 101 → Under host (active)
-        // - Unit 103 → Under host (sibling of 101)
-        // - Unit 105 → Under host (sibling of 101, 103), etc.
-        // All odd units are siblings under the host
+        // Odd units (101, 103, etc.): 
+        // - If owner already has units in this stage → Place under OWNER's existing units
+        // - If owner has NO units → Place under HOST (or system root if no host)
+        // 
+        // First, check if owner already has units in this stage
+        const ownerExistingUnits = await client.unit.findMany({
+          where: {
+            ownerId: ownerId,
+            contractGameId: contractGameId,
+            stage: stage,
+            isSystemRoot: false
+          },
+          orderBy: { unitNumber: 'asc' }
+        });
+
+        if (ownerExistingUnits.length > 0) {
+          // Owner already has units - place new units under owner's existing units
+          // Find the first owner unit with available space
+          for (const ownerUnit of ownerExistingUnits) {
+            const directChildren = await client.unit.findMany({
+              where: {
+                parentUnitId: ownerUnit.id,
+                level: ownerUnit.level + 1 // Only direct children
+              }
+            });
+
+            if (directChildren.length < 2) {
+              // Found an owner unit with available space
+              targetActiveUnit = ownerUnit;
+              logger.info(`Placing odd unit ${unitNumber} under owner's existing Unit ${ownerUnit.unitNumber} (${ownerUnit.unitName}) - has ${directChildren.length}/2 children`);
+              break;
+            }
+          }
+
+          // If all owner units are full, continue to find another placement option
+          if (!targetActiveUnit) {
+            logger.warn(`All owner ${ownerId} units are full in stage ${stage}, will try host or system root`);
+          }
+        }
+
+        // If owner has no units OR all owner units are full, use host/system root logic
+        if (!targetActiveUnit) {
+          // Original logic: Place under HOST (or system root if no host)
+          // - Unit 101 → Under host (active)
+          // - Unit 103 → Under host (sibling of 101)
+          // - Unit 105 → Under host (sibling of 101, 103), etc.
+          // All odd units are siblings under the host
           if (hostId) {
             // Find host's units in order (101, 102, 103, 104, etc.)
             const hostUnits = await client.unit.findMany({
@@ -606,11 +648,13 @@ class PlacementService {
           }
         }
       } else {
-        // Even units (102, 104, etc.): ALWAYS place under OWNER's FIRST ODD UNIT (101)
+        // Even units (102, 104, etc.): 
+        // - First try: Place under OWNER's FIRST ODD UNIT (101) if it has space
+        // - If 101 is full: Find any owner unit with available space
         // - Unit 102 → Under Unit 101 (child of 101)
         // - Unit 104 → Under Unit 101 (child of 101, sibling of 102)
-        // - Unit 106 → Under Unit 101 (child of 101, sibling of 102, 104), etc.
-        // All even units are children of the first odd unit (101)
+        // - Unit 106 → Under Unit 101 or another owner unit if 101 is full
+        // All even units should be children of owner's units
         
         // Find owner's first odd unit (101, 2001, or 3001)
         const ownerFirstOddUnit = await client.unit.findFirst({
@@ -641,14 +685,37 @@ class PlacementService {
             targetActiveUnit = ownerFirstOddUnit;
             logger.info(`Placing even unit ${unitNumber} under owner's first odd unit ${ownerFirstOddUnit.unitNumber} (${ownerFirstOddUnit.unitName}) - has ${directChildren.length}/2 children`);
           } else {
-            // Unit 101 is full - this shouldn't happen if placement rules are followed correctly
-            // Fall back to finding any available unit under owner's units
-            logger.warn(`Owner's first odd unit ${ownerFirstOddUnit.unitNumber} is full, finding alternative placement`);
-            const ownerActiveUnit = await this.findActiveUnit(ownerId, contractGameId, stage, client);
-            if (ownerActiveUnit) {
-              targetActiveUnit = ownerActiveUnit;
-            } else {
-              // Last resort: use system root
+            // Unit 101 is full - find any owner unit with available space
+            logger.info(`Owner's first odd unit ${ownerFirstOddUnit.unitNumber} is full, finding another owner unit with space`);
+            const ownerUnits = await client.unit.findMany({
+              where: {
+                ownerId: ownerId,
+                contractGameId: contractGameId,
+                stage: stage,
+                isSystemRoot: false
+              },
+              orderBy: { unitNumber: 'asc' }
+            });
+
+            // Find first owner unit with available space
+            for (const ownerUnit of ownerUnits) {
+              const unitChildren = await client.unit.findMany({
+                where: {
+                  parentUnitId: ownerUnit.id,
+                  level: ownerUnit.level + 1
+                }
+              });
+
+              if (unitChildren.length < 2) {
+                targetActiveUnit = ownerUnit;
+                logger.info(`Placing even unit ${unitNumber} under owner's Unit ${ownerUnit.unitNumber} (${ownerUnit.unitName}) - has ${unitChildren.length}/2 children`);
+                break;
+              }
+            }
+
+            // If all owner units are full, fall back to system root
+            if (!targetActiveUnit) {
+              logger.warn(`All owner units are full, falling back to system root`);
               targetActiveUnit = await this.findSystemRoot(contractGameId, stage, client);
             }
           }
