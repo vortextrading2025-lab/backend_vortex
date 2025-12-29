@@ -646,6 +646,7 @@ class PlacementService {
               throw new Error(`No system root found for contract game ${contractGameId} stage ${stage} and no available units for placement. Contract game may not be initialized.`);
             }
           }
+          }
         }
       } else {
         // Even units (102, 104, etc.): 
