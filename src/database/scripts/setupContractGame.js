@@ -78,9 +78,9 @@ const setupContractGame = async () => {
         downPayment: 500.00, // Stage 1 advance payment
         advancePaymentStage2: 1150.00, // Stage 2 advance payment
         advancePaymentStage3: 2600.00, // Stage 3 advance payment
-        payoutStage1: 350.00, // Phase Delivery Stage 1
-        payoutStage2: 850.00, // Phase Delivery Stage 2
-        payoutStage3: 7800.00, // Phase Delivery Stage 3
+        payoutStage1: 1500.00, // Total Value Stage 1 (includes $500 advance + $1,000 profit)
+        payoutStage2: 3450.00, // Total Value Stage 2 (includes $1,150 advance + $2,300 profit)
+        payoutStage3: 7800.00, // Total Value Stage 3 (includes $2,600 advance + $5,200 profit)
         status: 'ACTIVE',
         createdById: admin.id
       }

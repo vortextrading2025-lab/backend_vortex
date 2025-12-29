@@ -722,23 +722,39 @@ class OrderService {
         for (const item of order.items) {
           const sellingPrice = Number(item.price);
           const costPrice = Number(item.costPrice);
-          const bonusPerItem = sellingPrice - costPrice;
+          const margin = sellingPrice - costPrice;
           
-          if (bonusPerItem > 0) {
-            const bonusAmount = bonusPerItem * item.quantity;
+          if (margin > 0 && sellingPrice > 0) {
+            // Calculate margin percentage: ((sellingPrice - costPrice) / sellingPrice) * 100
+            const marginPercentage = (margin / sellingPrice) * 100;
             
-            await BonusService.createBonus({
-              userId: order.userId,
-              orderId: order.id,
-              orderNumber: order.orderNumber || null, // Pass order number for display
-              orderItemId: item.id,
-              productId: item.productId,
-              productName: item.product.name,
-              quantity: item.quantity,
-              sellingPrice: sellingPrice,
-              costPrice: costPrice,
-              bonusAmount: bonusAmount
-            });
+            // Determine bonus percentage based on margin percentage ranges
+            let bonusPercentage = 0;
+            if (marginPercentage >= 0 && marginPercentage < 20) {
+              bonusPercentage = 0.10; // 10% of margin
+            } else if (marginPercentage >= 20 && marginPercentage < 40) {
+              bonusPercentage = 0.20; // 20% of margin
+            } else if (marginPercentage >= 40) {
+              bonusPercentage = 0.30; // 30% of margin
+            }
+            
+            // Calculate bonus amount: margin * bonus percentage * quantity
+            const bonusAmount = margin * bonusPercentage * item.quantity;
+            
+            if (bonusAmount > 0) {
+              await BonusService.createBonus({
+                userId: order.userId,
+                orderId: order.id,
+                orderNumber: order.orderNumber || null, // Pass order number for display
+                orderItemId: item.id,
+                productId: item.productId,
+                productName: item.product.name,
+                quantity: item.quantity,
+                sellingPrice: sellingPrice,
+                costPrice: costPrice,
+                bonusAmount: bonusAmount
+              });
+            }
           }
         }
       }

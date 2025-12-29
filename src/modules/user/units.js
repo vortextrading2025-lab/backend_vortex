@@ -232,7 +232,8 @@ router.get('/my-units', async (req, res) => {
 
 /**
  * GET /api/units/my-requests
- * Get user's purchase requests
+ * Get user's contracts (each unit is a separate contract)
+ * Returns each unit as a separate contract with its own cooldown and cancellation status
  */
 router.get('/my-requests', authenticate, async (req, res) => {
   try {
@@ -240,26 +241,19 @@ router.get('/my-requests', authenticate, async (req, res) => {
     const contractGameId = req.query.contractGameId || null;
 
     const where = {
-      userId: userId
+      ownerId: userId,
+      isSystemRoot: false,
+      refundedAt: null // Only show non-refunded units
     };
 
     if (contractGameId) {
       where.contractGameId = contractGameId;
     }
 
-    const requests = await database.getClient().purchaseRequest.findMany({
+    // Get all units for this user (each unit is a separate contract)
+    const units = await database.getClient().unit.findMany({
       where: where,
-      select: {
-        id: true,
-        userId: true,
-        contractGameId: true,
-        unitCount: true,
-        totalAmount: true,
-        status: true,
-        createdAt: true,
-        placedAt: true,
-        cooldownEndsAt: true,
-        refundedAt: true,
+      include: {
         contractGame: {
           select: {
             id: true,
@@ -273,131 +267,119 @@ router.get('/my-requests', authenticate, async (req, res) => {
             status: true
           }
         },
-        mentor: {
+        purchaseRequest: {
           select: {
             id: true,
-            email: true,
-            firstName: true,
-            lastName: true
+            status: true,
+            createdAt: true,
+            placedAt: true
+          }
+        },
+        payouts: {
+          select: {
+            id: true,
+            amount: true,
+            stage: true,
+            status: true,
+            createdAt: true,
+            creditedAt: true
+          },
+          orderBy: {
+            createdAt: 'desc'
           }
         }
       },
       orderBy: {
-        createdAt: 'asc' // Order by creation time to get Contract 1, 2, 3...
+        createdAt: 'asc' // Order by creation to get Contract 1, 2, 3...
       }
     });
 
-    // For each purchase request, find its associated units
-    // Units are matched by: same owner, same contractGame, created around the same time as placement
-    // For APPROVED requests (units not yet placed), return empty units array
-    // For PLACED requests, match units by time window
-    const requestsWithUnits = await Promise.all(requests.map(async (request) => {
-      // If request is APPROVED (not yet placed), return empty units array
-      if (request.status === 'APPROVED') {
-        return {
-          ...request,
-          units: []
-        };
-      }
-      
-      // If request is PLACED but no placedAt date, return empty units array
-      if (request.status !== 'PLACED' || !request.placedAt) {
-        return {
-          ...request,
-          units: []
-        };
+    // Map each unit to a contract
+    const contracts = await Promise.all(units.map(async (unit, index) => {
+      // Calculate advance payment amount based on stage
+      let advancePayment = 0;
+      if (unit.stage === 1) {
+        advancePayment = Number(unit.contractGame.downPayment);
+      } else if (unit.stage === 2) {
+        advancePayment = Number(unit.contractGame.advancePaymentStage2);
+      } else if (unit.stage === 3) {
+        advancePayment = Number(unit.contractGame.advancePaymentStage3);
       }
 
-      // Find units created around the time of placement (within 30 minutes for safety)
-      // Also try without time window if no units found (in case of timing issues)
-      const placementTime = new Date(request.placedAt);
-      const timeWindowStart = new Date(placementTime.getTime() - 30 * 60 * 1000); // 30 minutes before
-      const timeWindowEnd = new Date(placementTime.getTime() + 30 * 60 * 1000); // 30 minutes after
-
-      // First try with time window
-      let units = await database.getClient().unit.findMany({
+      // Count children units in the required level
+      // Stage 1: need 4 units in level 4 (unit.level + 3)
+      // Stage 2/3: need 4 units in level 3 (unit.level + 2)
+      const requiredLevel = unit.stage === 1 ? unit.level + 3 : unit.level + 2;
+      const childrenInRequiredLevel = await database.getClient().unit.count({
         where: {
-          ownerId: request.userId,
-          contractGameId: request.contractGameId,
-          isSystemRoot: false,
-          createdAt: {
-            gte: timeWindowStart,
-            lte: timeWindowEnd
-          }
-        },
-        select: {
-          id: true,
-          unitName: true,
-          unitNumber: true,
-          stage: true,
-          level: true,
-          positionInLevel: true,
-          isActive: true,
-          isCompleted: true,
-          completedAt: true,
-          createdAt: true
-        },
-        orderBy: {
-          unitNumber: 'asc'
+          parentUnitId: unit.id,
+          level: requiredLevel,
+          contractGameId: unit.contractGameId,
+          stage: unit.stage
         }
       });
 
-      // If no units found with time window, try without time constraint (fallback)
-      // This handles cases where there might be timing discrepancies
-      if (units.length === 0) {
-        logger.warn(`No units found for purchase request ${request.id} with time window. Trying without time constraint.`);
-        units = await database.getClient().unit.findMany({
-          where: {
-            ownerId: request.userId,
-            contractGameId: request.contractGameId,
-            isSystemRoot: false
-          },
-          select: {
-            id: true,
-            unitName: true,
-            unitNumber: true,
-            stage: true,
-            level: true,
-            positionInLevel: true,
-            isActive: true,
-            isCompleted: true,
-            completedAt: true,
-            createdAt: true
-          },
-          orderBy: {
-            unitNumber: 'asc'
-          },
-          take: request.unitCount // Limit to expected unit count
-        });
-      }
+      // Check if unit has received commission payment for current stage
+      const hasReceivedCommission = (unit.payouts || []).some(p => 
+        p.stage === unit.stage && (p.status === 'CREDITED' || p.status === 'COMPLETED')
+      );
 
-      logger.info(`Found ${units.length} units for purchase request ${request.id} (expected ${request.unitCount})`);
+      // Check if unit has ever been active (has payouts or was active)
+      const hasEverBeenActive = unit.isActive || (unit.payouts && unit.payouts.length > 0) || unit.completedAt;
 
       return {
-        ...request,
-        units: units
+        id: unit.id, // Use unit ID as contract ID
+        contractNumber: index + 1, // Contract 1, 2, 3...
+        unit: {
+          id: unit.id,
+          unitName: unit.unitName,
+          unitNumber: unit.unitNumber,
+          stage: unit.stage,
+          level: unit.level,
+          positionInLevel: unit.positionInLevel,
+          isActive: unit.isActive,
+          isCompleted: unit.isCompleted,
+          completedAt: unit.completedAt,
+          createdAt: unit.createdAt,
+          purchaseRequestId: unit.purchaseRequestId || unit.purchaseRequest?.id || null
+        },
+        contractGame: {
+          id: unit.contractGame.id,
+          name: unit.contractGame.name || 'Vortex Contract',
+          status: unit.contractGame.status || 'ACTIVE',
+          downPayment: Number(unit.contractGame.downPayment) || 0,
+          advancePaymentStage2: Number(unit.contractGame.advancePaymentStage2) || 1150.00,
+          advancePaymentStage3: Number(unit.contractGame.advancePaymentStage3) || 2600.00,
+          payoutStage1: Number(unit.contractGame.payoutStage1) || 0,
+          payoutStage2: Number(unit.contractGame.payoutStage2) || 0,
+          payoutStage3: Number(unit.contractGame.payoutStage3) || 0
+        },
+        advancePayment: advancePayment,
+        totalAmount: advancePayment, // For single unit, total = advance payment
+        cooldownEndsAt: unit.cooldownEndsAt,
+        refundedAt: unit.refundedAt,
+        createdAt: unit.createdAt,
+        placedAt: unit.purchaseRequest?.placedAt || unit.createdAt,
+        requestStatus: unit.purchaseRequest?.status || 'PLACED', // Status of the purchase request
+        payouts: (unit.payouts || []).map(p => ({
+          id: p.id,
+          amount: Number(p.amount),
+          stage: p.stage,
+          status: p.status,
+          createdAt: p.createdAt,
+          creditedAt: p.creditedAt
+        })),
+        // Status calculation data
+        hasEverBeenActive: hasEverBeenActive,
+        hasReceivedCommission: hasReceivedCommission,
+        childrenInRequiredLevel: childrenInRequiredLevel,
+        requiredLevel: requiredLevel
       };
     }));
 
-    // Convert Decimal to Number and include units
-    const requestsWithNumbers = requestsWithUnits.map(request => ({
-      ...request,
-      totalAmount: Number(request.totalAmount) || 0,
-      contractGame: {
-        ...request.contractGame,
-        downPayment: Number(request.contractGame.downPayment) || 0,
-        advancePaymentStage2: Number(request.contractGame.advancePaymentStage2) || 1150.00,
-        advancePaymentStage3: Number(request.contractGame.advancePaymentStage3) || 2600.00,
-        payoutStage1: Number(request.contractGame.payoutStage1) || 0,
-        payoutStage2: Number(request.contractGame.payoutStage2) || 0,
-        payoutStage3: Number(request.contractGame.payoutStage3) || 0
-      },
-      units: request.units || []
-    }));
-
-    return successResponse(res, 200, 'Purchase requests retrieved successfully', requestsWithNumbers);
+    return successResponse(res, 200, 'Contracts retrieved successfully', contracts);
   } catch (error) {
-    logger.error('Error getting user purchase requests:', error);
+    logger.error('Error getting user contracts:', error);
     return errorResponse(res, 500, error.message);
   }
 });
@@ -441,8 +423,29 @@ router.post('/purchase-requests/:id/retry-placement', authenticate, async (req, 
 });
 
 /**
+ * POST /api/units/:id/refund
+ * Refund a single unit (cancels the unit and refunds money)
+ * Each unit is a separate contract with its own cooldown period
+ */
+router.post('/:id/refund', authenticate, async (req, res) => {
+  try {
+    const unitId = req.params.id;
+    const userId = req.user.id;
+
+    const RefundService = require('../../services/refundService');
+    const result = await RefundService.processUnitRefund(unitId, userId);
+
+    return successResponse(res, 200, 'Unit refunded successfully', result);
+  } catch (error) {
+    logger.error('Error refunding unit:', error);
+    return errorResponse(res, 400, error.message);
+  }
+});
+
+/**
  * POST /api/units/purchase-requests/:id/refund
- * Request to refund a purchase request
+ * Request to refund a purchase request (kept for backward compatibility)
+ * Note: Now each unit should be refunded individually using /api/units/:id/refund
  */
 router.post('/purchase-requests/:id/refund', authenticate, async (req, res) => {
   try {

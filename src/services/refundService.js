@@ -182,6 +182,139 @@ class RefundService {
       totalMs: remaining
     };
   }
+
+  /**
+   * Check if a unit is eligible for refund (within 14-day cooldown)
+   * Each unit has its own cooldown period
+   */
+  static async isUnitEligibleForRefund(unitId) {
+    const unit = await database.getClient().unit.findUnique({
+      where: { id: unitId },
+      include: {
+        contractGame: true,
+        owner: true
+      }
+    });
+
+    if (!unit) {
+      throw new Error('Unit not found');
+    }
+
+    if (unit.refundedAt) {
+      throw new Error('Unit has already been refunded');
+    }
+
+    if (!unit.cooldownEndsAt) {
+      throw new Error('Cooldown period not set for this unit');
+    }
+
+    const now = new Date();
+    if (now > unit.cooldownEndsAt) {
+      throw new Error('Cooldown period has expired. Refund is no longer available.');
+    }
+
+    return true;
+  }
+
+  /**
+   * Process refund for a single unit
+   * - Deletes the unit
+   * - Refunds the unit's advance payment to user's wallet
+   * - Marks unit as refunded
+   */
+  static async processUnitRefund(unitId, userId) {
+    return await database.getClient().$transaction(async (tx) => {
+      const unit = await tx.unit.findUnique({
+        where: { id: unitId },
+        include: {
+          contractGame: true,
+          owner: true,
+          purchaseRequest: true
+        }
+      });
+
+      if (!unit) {
+        throw new Error('Unit not found');
+      }
+
+      if (unit.ownerId !== userId) {
+        throw new Error('You can only refund your own units');
+      }
+
+      // Check eligibility
+      await this.isUnitEligibleForRefund(unitId);
+
+      // Calculate refund amount based on stage
+      let refundAmount = 0;
+      if (unit.stage === 1) {
+        refundAmount = Number(unit.contractGame.downPayment);
+      } else if (unit.stage === 2) {
+        refundAmount = Number(unit.contractGame.advancePaymentStage2);
+      } else if (unit.stage === 3) {
+        refundAmount = Number(unit.contractGame.advancePaymentStage3);
+      }
+
+      // Delete the unit
+      await tx.unit.delete({
+        where: { id: unitId }
+      });
+      logger.info(`Deleted unit ${unit.unitName} (${unitId}) for refund`);
+
+      // Refund to wallet
+      await WalletService.addToWallet(
+        userId,
+        refundAmount,
+        null,
+        `Refund for unit ${unit.unitName} (${unit.unitNumber}) in Stage ${unit.stage}`
+      );
+
+      logger.info(`Refunded unit ${unitId}: ${refundAmount} to user ${userId}`);
+
+      return {
+        unitId,
+        unitName: unit.unitName,
+        unitNumber: unit.unitNumber,
+        stage: unit.stage,
+        refundAmount,
+      };
+    }).then(async (result) => {
+      // Cancel any held payouts for this unit (outside transaction)
+      const PayoutReleaseService = require('./payoutReleaseService');
+      await PayoutReleaseService.cancelHeldPayoutsForUnits([result.unitId]);
+      return result;
+    });
+  }
+
+  /**
+   * Get remaining cooldown time for a unit
+   */
+  static async getUnitCooldownRemaining(unitId) {
+    const unit = await database.getClient().unit.findUnique({
+      where: { id: unitId },
+      select: {
+        cooldownEndsAt: true,
+        refundedAt: true
+      }
+    });
+
+    if (!unit || !unit.cooldownEndsAt || unit.refundedAt) {
+      return null;
+    }
+
+    const now = new Date();
+    const remaining = unit.cooldownEndsAt.getTime() - now.getTime();
+
+    if (remaining <= 0) {
+      return null; // Cooldown expired
+    }
+
+    return {
+      days: Math.floor(remaining / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60)),
+      totalMs: remaining
+    };
+  }
 }
 
 module.exports = RefundService;

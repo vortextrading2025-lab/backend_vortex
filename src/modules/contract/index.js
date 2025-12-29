@@ -303,6 +303,202 @@ router.post('/check-fulfillment/:id', async (req, res) => {
 
 /**
  * @swagger
+ * /api/contracts/network:
+ *   get:
+ *     summary: Get user's network (direct invites and their invites)
+ *     description: Get list of users invited by the current user and who those users invited
+ *     tags: [Contracts]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Network retrieved successfully
+ */
+router.get('/network', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const prisma = database.getClient();
+
+    // Recursive function to get complete downstream network
+    const getDownstreamNetwork = async (inviterId, level = 0, maxLevel = 10) => {
+      if (level >= maxLevel) return [];
+
+      // Get all users invited by this inviter
+      const inviteLinks = await prisma.inviteLink.findMany({
+        where: {
+          inviterId: inviterId,
+          invitedUserId: { not: null }
+        },
+        include: {
+          invitedUser: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              createdAt: true
+            }
+          }
+        },
+        orderBy: {
+          lastUsedAt: 'desc'
+        }
+      });
+
+      const network = [];
+
+      for (const inviteLink of inviteLinks) {
+        const invitedUserId = inviteLink.invitedUserId;
+        
+        // Recursively get downstream network for this user
+        const downstream = await getDownstreamNetwork(invitedUserId, level + 1, maxLevel);
+
+        network.push({
+          id: inviteLink.id,
+          invitedUser: inviteLink.invitedUser,
+          invitedAt: inviteLink.lastUsedAt || inviteLink.createdAt,
+          level: level + 1,
+          inviterId: inviterId,
+          downstream: downstream
+        });
+      }
+
+      return network;
+    };
+
+    // Get complete downstream network tree
+    const networkTree = await getDownstreamNetwork(userId);
+
+    // Flatten the tree to get all user IDs for fetching stats
+    const getAllUserIds = (tree) => {
+      const ids = [];
+      for (const node of tree) {
+        if (node.invitedUser?.id) {
+          ids.push(node.invitedUser.id);
+        }
+        if (node.downstream && node.downstream.length > 0) {
+          ids.push(...getAllUserIds(node.downstream));
+        }
+      }
+      return ids;
+    };
+
+    const allNetworkUserIds = getAllUserIds(networkTree);
+
+    // Get wallet data for all network users (only if there are users)
+    let wallets = [];
+    let unitCounts = [];
+    let activeUnitCounts = [];
+    
+    if (allNetworkUserIds.length > 0) {
+      wallets = await prisma.wallet.findMany({
+        where: {
+          userId: { in: allNetworkUserIds }
+        },
+        select: {
+          userId: true,
+          totalEarned: true,
+          balance: true
+        }
+      });
+
+      // Get unit counts for network users
+      unitCounts = await prisma.unit.groupBy({
+        by: ['ownerId'],
+        where: {
+          ownerId: { in: allNetworkUserIds },
+          isSystemRoot: false
+        },
+        _count: {
+          id: true
+        }
+      });
+
+      // Get active unit counts
+      activeUnitCounts = await prisma.unit.groupBy({
+        by: ['ownerId'],
+        where: {
+          ownerId: { in: allNetworkUserIds },
+          isSystemRoot: false,
+          isActive: true
+        },
+        _count: {
+          id: true
+        }
+      });
+    }
+
+    // Create lookup maps
+    const walletMap = new Map(wallets.map(w => [w.userId, w]));
+    const unitCountMap = new Map(unitCounts.map(u => [u.ownerId, u._count.id]));
+    const activeUnitCountMap = new Map(activeUnitCounts.map(u => [u.ownerId, u._count.id]));
+
+    // Add earnings data to network tree recursively
+    const addEarningsToTree = (tree) => {
+      return tree.map(node => {
+        const invitedUserId = node.invitedUser?.id;
+        const wallet = walletMap.get(invitedUserId);
+        const unitCount = unitCountMap.get(invitedUserId) || 0;
+        const activeUnitCount = activeUnitCountMap.get(invitedUserId) || 0;
+
+        return {
+          ...node,
+          earnings: {
+            totalEarned: wallet?.totalEarned || 0,
+            currentBalance: wallet?.balance || 0,
+            totalUnits: unitCount,
+            activeUnits: activeUnitCount
+          },
+          downstream: node.downstream ? addEarningsToTree(node.downstream) : []
+        };
+      });
+    };
+
+    const networkTreeWithEarnings = addEarningsToTree(networkTree);
+
+    // Calculate total network earnings
+    const totalNetworkEarnings = wallets.reduce((sum, w) => sum + (w.totalEarned || 0), 0);
+    const totalNetworkBalance = wallets.reduce((sum, w) => sum + (w.balance || 0), 0);
+
+    // Count total users at each level
+    const countUsers = (tree) => {
+      let count = tree.length;
+      for (const node of tree) {
+        if (node.downstream && node.downstream.length > 0) {
+          count += countUsers(node.downstream);
+        }
+      }
+      return count;
+    };
+
+    const totalNetworkUsers = countUsers(networkTree);
+
+    return successResponse(res, 200, 'Network retrieved successfully', {
+      networkTree: networkTreeWithEarnings || [],
+      networkStats: {
+        totalEarnings: totalNetworkEarnings || 0,
+        totalBalance: totalNetworkBalance || 0,
+        totalUsers: totalNetworkUsers || 0,
+        directInvites: networkTree.length || 0
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching network:', error);
+    // Return empty structure on error instead of failing completely
+    return successResponse(res, 200, 'Network retrieved successfully', {
+      networkTree: [],
+      networkStats: {
+        totalEarnings: 0,
+        totalBalance: 0,
+        totalUsers: 0,
+        directInvites: 0
+      }
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/contracts/:id:
  *   get:
  *     summary: Get contract details

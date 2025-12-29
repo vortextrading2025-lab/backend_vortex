@@ -242,14 +242,23 @@ class FulfillmentService {
         return { updatedUnit: null, payoutId: null, payoutAmount: 0, parentUnitId: null };
       }
 
-      // Get payout amount based on stage
+      // Get payout amount based on stage (Total Value)
       let payoutAmount = 0;
+      let nextStageAdvancePayment = 0;
+      let remainingBalance = 0;
+      
       if (unit.stage === 1) {
-        payoutAmount = parseFloat(unit.contractGame.payoutStage1) || 0;
+        payoutAmount = parseFloat(unit.contractGame.payoutStage1) || 0; // $1,500
+        nextStageAdvancePayment = parseFloat(unit.contractGame.advancePaymentStage2) || 0; // $1,150
+        remainingBalance = payoutAmount - nextStageAdvancePayment; // $350
       } else if (unit.stage === 2) {
-        payoutAmount = parseFloat(unit.contractGame.payoutStage2) || 0;
+        payoutAmount = parseFloat(unit.contractGame.payoutStage2) || 0; // $3,450
+        nextStageAdvancePayment = parseFloat(unit.contractGame.advancePaymentStage3) || 0; // $2,600
+        remainingBalance = payoutAmount - nextStageAdvancePayment; // $850
       } else if (unit.stage === 3) {
-        payoutAmount = parseFloat(unit.contractGame.payoutStage3) || 0;
+        payoutAmount = parseFloat(unit.contractGame.payoutStage3) || 0; // $7,800
+        nextStageAdvancePayment = 0; // No next stage
+        remainingBalance = payoutAmount; // $7,800 (final payout)
       }
 
       // Mark unit as completed
@@ -333,7 +342,13 @@ class FulfillmentService {
         }
       });
 
-      return { updatedUnit, payoutId: payout.id, payoutAmount, parentUnitId, isHeld: !!heldUntil };
+      return { 
+        updatedUnit, 
+        payoutId: payout.id, 
+        payoutAmount, 
+        parentUnitId, 
+        isHeld: !!heldUntil 
+      };
     }, {
       timeout: 20000 // increase timeout to allow core fulfillment
     });
@@ -367,6 +382,29 @@ class FulfillmentService {
         }
       });
 
+      // Get contract game to access advance payment amounts
+      const contractGame = await client.contractGame.findUnique({
+        where: { id: updatedUnit.contractGameId },
+        select: {
+          advancePaymentStage2: true,
+          advancePaymentStage3: true
+        }
+      });
+
+      // Determine next stage advance payment and remaining balance
+      let nextStageAdvance = 0;
+      let remainingBal = payoutAmount;
+      
+      if (updatedUnit.stage === 1) {
+        nextStageAdvance = parseFloat(contractGame?.advancePaymentStage2 || 0);
+        remainingBal = payoutAmount - nextStageAdvance;
+      } else if (updatedUnit.stage === 2) {
+        nextStageAdvance = parseFloat(contractGame?.advancePaymentStage3 || 0);
+        remainingBal = payoutAmount - nextStageAdvance;
+      }
+      // Stage 3 has no next stage, so remainingBal = payoutAmount
+
+      // Step 1: Add total payout to wallet
       await client.wallet.update({
         where: { id: wallet.id },
         data: {
@@ -375,6 +413,7 @@ class FulfillmentService {
         }
       });
 
+      // Step 2: Create transaction for payout (Total Value received)
       await client.transaction.create({
         data: {
           walletId: wallet.id,
@@ -384,9 +423,36 @@ class FulfillmentService {
           status: 'COMPLETED',
           referenceId: updatedUnit.id,
           referenceType: 'PAYOUT',
-          description: `Payout for unit completion - Stage ${updatedUnit.stage}`
+          description: `Total Value of ${payoutAmount.toFixed(2)} CAD received for Unit ${updatedUnit.unitName} completion in Stage ${updatedUnit.stage}`
         }
       });
+
+      // Step 3: If there's a next stage, automatically subtract advance payment and create rebuy transaction
+      if (nextStageAdvance > 0 && updatedUnit.stage < 3) {
+        const nextStage = updatedUnit.stage + 1;
+        
+        // Subtract advance payment from wallet balance
+        await client.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            balance: { decrement: nextStageAdvance }
+          }
+        });
+
+        // Create transaction for rebuy (advance payment for next stage)
+        await client.transaction.create({
+          data: {
+            walletId: wallet.id,
+            userId: updatedUnit.ownerId,
+            type: 'CONTRACT_PURCHASE',
+            amount: -nextStageAdvance, // Negative for withdrawal
+            status: 'COMPLETED',
+            referenceId: updatedUnit.id,
+            referenceType: 'STAGE_REBUY',
+            description: `Advance Payment of ${nextStageAdvance.toFixed(2)} CAD deducted from earnings for Stage ${nextStage} unit rebuy (Unit ${updatedUnit.unitName}). Remaining balance: ${remainingBal.toFixed(2)} CAD available for marketplace.`
+          }
+        });
+      }
 
       // Attach walletId to payout now that wallet exists
       await client.payout.update({
