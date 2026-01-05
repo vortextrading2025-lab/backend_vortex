@@ -250,7 +250,7 @@ class PurchaseService {
    * Places all units using PlacementService
    */
   static async processPlacement(requestId) {
-    // Increase timeout to 60 seconds for placing multiple units (BFS search can be slow)
+    // Increase timeout to 120 seconds for placing multiple units (BFS search can be slow for deep trees)
     return await database.getClient().$transaction(async (tx) => {
       const request = await tx.purchaseRequest.findUnique({
         where: { id: requestId },
@@ -446,7 +446,8 @@ class PurchaseService {
       };
     }, {
       maxWait: 60000, // 60 seconds max wait for transaction to start
-      timeout: 60000  // 60 seconds timeout for transaction to complete (BFS search can be slow)
+      timeout: 120000,  // 120 seconds (2 minutes) timeout for transaction to complete (BFS search can be slow for deep trees)
+      maxWait: 5000  // 5 seconds max wait to start transaction
     }).then(async (result) => {
       // Cooldown was already set when purchase request was created (in createPurchaseRequest)
       // No need to set it again here - it's already set to 14 days from purchase creation

@@ -468,50 +468,63 @@ class PlacementService {
 
       if (isOddUnit) {
         // Odd units (101, 103, etc.): 
-        // - If owner already has units in this stage → Place under OWNER's existing units
-        // - If owner has NO units → Place under HOST (or system root if no host)
-        // 
-        // First, check if owner already has units in this stage
-        const ownerExistingUnits = await client.unit.findMany({
-          where: {
-            ownerId: ownerId,
-            contractGameId: contractGameId,
-            stage: stage,
-            isSystemRoot: false
-          },
-          orderBy: { unitNumber: 'asc' }
-        });
-
-        if (ownerExistingUnits.length > 0) {
-          // Owner already has units - place new units under owner's existing units
-          // Use the first owner unit - findVacantLevel will find space in its subtree
-          // even if it has 2 direct children (it will search deeper levels)
-          targetActiveUnit = ownerExistingUnits[0];
-          logger.info(`Placing odd unit ${unitNumber} under owner's existing Unit ${targetActiveUnit.unitNumber} (${targetActiveUnit.unitName}) - will find space in subtree`);
-        }
-
-        // If owner has no units OR all owner units are full, use host/system root logic
-        if (!targetActiveUnit) {
-          // Original logic: Place under HOST (or system root if no host)
-          // - Unit 101 → Under host (active)
-          // - Unit 103 → Under host (sibling of 101)
-          // - Unit 105 → Under host (sibling of 101, 103), etc.
-          // All odd units are siblings under the host
+        // ALWAYS place under HOST (or system root if no host)
+        // - Unit 101 → Under host (active)
+        // - Unit 103 → Under host (sibling of 101)
+        // - Unit 105 → Under host (sibling of 101, 103), etc.
+        // All odd units are siblings under the host
           if (hostId) {
-            // Find host's units in order (101, 102, 103, 104, etc.)
-            const hostUnits = await client.unit.findMany({
+            // Find host's ODD units only (101, 103, 105, etc.) - odd units go under host's odd units
+            // Prioritize the host's first odd unit (101) first
+            const firstOddUnitNumber = stage === 1 ? 101 : stage === 2 ? 2001 : 3001;
+            
+            // First, try the host's first odd unit (101, 2001, or 3001)
+            const hostFirstOddUnit = await client.unit.findFirst({
               where: {
                 ownerId: hostId,
                 contractGameId: contractGameId,
                 stage: stage,
-                isSystemRoot: false
-              },
-              orderBy: { unitNumber: 'asc' } // Order by unit number: 101, 102, 103, 104, etc.
+                isSystemRoot: false,
+                unitNumber: firstOddUnitNumber
+              }
             });
 
-            if (hostUnits.length > 0) {
-              // Check each host unit in order to find the first one with available space
-              for (const hostUnit of hostUnits) {
+            if (hostFirstOddUnit) {
+              const directChildren = await client.unit.findMany({
+                where: {
+                  parentUnitId: hostFirstOddUnit.id,
+                  level: hostFirstOddUnit.level + 1 // Only direct children
+                }
+              });
+
+              if (directChildren.length < 2) {
+                // Host's first odd unit has space - use it
+                targetActiveUnit = hostFirstOddUnit;
+                logger.info(`Placing odd unit ${unitNumber} under host's first odd unit ${hostFirstOddUnit.unitNumber} (${hostFirstOddUnit.unitName}) - has ${directChildren.length}/2 children`);
+              }
+            }
+
+            // If host's first odd unit is full, find other odd units with space
+            if (!targetActiveUnit) {
+              const hostOddUnits = await client.unit.findMany({
+                where: {
+                  ownerId: hostId,
+                  contractGameId: contractGameId,
+                  stage: stage,
+                  isSystemRoot: false,
+                  unitNumber: {
+                    gte: firstOddUnitNumber,
+                    // Only odd units: unitNumber % 2 === 1
+                  }
+                },
+                orderBy: { unitNumber: 'asc' }
+              });
+
+              // Filter to only odd units
+              const oddUnitsOnly = hostOddUnits.filter(u => u.unitNumber % 2 === 1);
+
+              // Check each odd unit to find the first one with available space
+              for (const hostUnit of oddUnitsOnly) {
                 const directChildren = await client.unit.findMany({
                   where: {
                     parentUnitId: hostUnit.id,
@@ -520,52 +533,17 @@ class PlacementService {
                 });
 
                 if (directChildren.length < 2) {
-                  // Found a host unit with available space
+                  // Found a host odd unit with available space
                   targetActiveUnit = hostUnit;
-                  logger.info(`Placing odd unit ${unitNumber} under host's Unit ${hostUnit.unitNumber} (${hostUnit.unitName}) - has ${directChildren.length}/2 children`);
+                  logger.info(`Placing odd unit ${unitNumber} under host's odd Unit ${hostUnit.unitNumber} (${hostUnit.unitName}) - has ${directChildren.length}/2 children`);
                   break;
                 }
               }
+            }
 
-              // If all host units are full, fall back to system root
-              if (!targetActiveUnit) {
-                logger.warn(`All host ${hostId} units are full in stage ${stage}, falling back to system root`);
-                const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
-                if (systemRoot) {
-                  const directChildren = await client.unit.findMany({
-                    where: {
-                      parentUnitId: systemRoot.id,
-                      level: systemRoot.level + 1
-                    }
-                  });
-                  
-                  if (directChildren.length < 2) {
-                    targetActiveUnit = systemRoot;
-                    logger.info(`Placing under system root (all host units full, system root has ${directChildren.length}/2 children)`);
-                  } else {
-                    // System root is full - find another available unit
-                    const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
-                    if (availableUnit) {
-                      targetActiveUnit = availableUnit;
-                      logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
-                    } else {
-                      throw new Error(`All host units are full, system root is full, and no other available units found`);
-                    }
-                  }
-                } else {
-                  // No system root - find any available unit
-                  const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
-                  if (availableUnit) {
-                    targetActiveUnit = availableUnit;
-                    logger.info(`No system root, placing under available unit ${availableUnit.unitName}`);
-                  } else {
-                    throw new Error(`All host units are full and no system root or available units found`);
-                  }
-                }
-              }
-            } else {
-              // Host has no units - fall back to system root
-              logger.warn(`Host ${hostId} has no units in stage ${stage}, falling back to system root`);
+            // If all host odd units are full, fall back to system root
+            if (!targetActiveUnit) {
+              logger.warn(`All host ${hostId} odd units are full in stage ${stage}, falling back to system root`);
               const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
               if (systemRoot) {
                 const directChildren = await client.unit.findMany({
@@ -577,7 +555,7 @@ class PlacementService {
                 
                 if (directChildren.length < 2) {
                   targetActiveUnit = systemRoot;
-                  logger.info(`Placing under system root (host had no units, system root has ${directChildren.length}/2 children)`);
+                  logger.info(`Placing under system root (all host odd units full, system root has ${directChildren.length}/2 children)`);
                 } else {
                   // System root is full - find another available unit
                   const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
@@ -585,7 +563,7 @@ class PlacementService {
                     targetActiveUnit = availableUnit;
                     logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
                   } else {
-                    throw new Error(`Host has no units, system root is full, and no other available units found`);
+                    throw new Error(`All host odd units are full, system root is full, and no other available units found`);
                   }
                 }
               } else {
@@ -595,51 +573,46 @@ class PlacementService {
                   targetActiveUnit = availableUnit;
                   logger.info(`No system root, placing under available unit ${availableUnit.unitName}`);
                 } else {
-                  throw new Error(`Host has no units and no system root or available units found`);
+                  throw new Error(`All host odd units are full and no system root or available units found`);
                 }
               }
             }
           } else {
-            // User is NOT invited - system will place
-          // Priority: 1. System root (if exists and has space), 2. Another available unit, 3. Error if no root
-          const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
-          
-          if (systemRoot) {
-            // System root exists - check if it has space (less than 2 direct children)
-            const directChildren = await client.unit.findMany({
-              where: {
-                parentUnitId: systemRoot.id,
-                level: systemRoot.level + 1 // Only direct children
+            // No hostId - use system root
+            logger.info(`No hostId provided, using system root for placement`);
+            const systemRoot = await this.findSystemRoot(contractGameId, stage, client);
+            if (systemRoot) {
+              const directChildren = await client.unit.findMany({
+                where: {
+                  parentUnitId: systemRoot.id,
+                  level: systemRoot.level + 1
+                }
+              });
+              
+              if (directChildren.length < 2) {
+                targetActiveUnit = systemRoot;
+                logger.info(`Placing under system root (no hostId, system root has ${directChildren.length}/2 children)`);
+              } else {
+                // System root is full - find another available unit
+                const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
+                if (availableUnit) {
+                  targetActiveUnit = availableUnit;
+                  logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
+                } else {
+                  throw new Error(`No hostId, system root is full, and no other available units found`);
+                }
               }
-            });
-            
-            if (directChildren.length < 2) {
-              // System root has space - use it
-              targetActiveUnit = systemRoot;
-              logger.info(`Placing under system root (has ${directChildren.length}/2 children)`);
             } else {
-              // System root is full - find another available unit
+              // No system root - find any available unit
               const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
               if (availableUnit) {
                 targetActiveUnit = availableUnit;
-                logger.info(`System root is full, placing under available unit ${availableUnit.unitName}`);
+                logger.info(`No system root, placing under available unit ${availableUnit.unitName}`);
               } else {
-                // No available units found - this shouldn't happen in a healthy system
-                throw new Error(`System root is full and no other available units found for placement`);
+                throw new Error(`No hostId and no system root or available units found`);
               }
             }
-          } else {
-            // No system root exists - find any available unit
-            const availableUnit = await this.findAvailableUnitForPlacement(contractGameId, stage, client);
-            if (availableUnit) {
-              targetActiveUnit = availableUnit;
-              logger.info(`No system root found, placing under available unit ${availableUnit.unitName}`);
-            } else {
-              throw new Error(`No system root found for contract game ${contractGameId} stage ${stage} and no available units for placement. Contract game may not be initialized.`);
-            }
           }
-          }
-        }
       } else {
         // Even units (102, 104, etc.): 
         // - First try: Place under OWNER's FIRST ODD UNIT (101) if it has space
@@ -750,8 +723,8 @@ class PlacementService {
       return await database.getClient().$transaction(async (tx) => {
         return await executePlacement(tx);
       }, {
-        maxWait: 30000,
-        timeout: 30000
+        maxWait: 5000,
+        timeout: 120000  // 120 seconds for deep tree searches
       });
     }
   }
