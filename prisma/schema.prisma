@@ -249,7 +249,7 @@ model Unit {
   host              User?           @relation("UnitHost", fields: [hostId], references: [id])
   mentor            User?           @relation("UnitMentor", fields: [mentorId], references: [id])
   owner             User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  parentUnit        Unit?           @relation("UnitTree", fields: [parentUnitId], references: [id], onDelete: Cascade)
+  parentUnit        Unit?           @relation("UnitTree", fields: [parentUnitId], references: [id], onDelete: SetNull)
   childrenUnits     Unit[]          @relation("UnitTree")
   purchaseRequest   PurchaseRequest? @relation("UnitPurchaseRequest", fields: [purchaseRequestId], references: [id])
 

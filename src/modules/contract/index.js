@@ -68,6 +68,49 @@ router.get('/all', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/contracts/invite/check:
+ *   get:
+ *     summary: Check invite link details (public)
+ *     description: Check if an invite code is valid and get inviter details (public endpoint)
+ *     tags: [Contracts]
+ *     security: []
+ *     parameters:
+ *       - in: query
+ *         name: inviteCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The invite code to check
+ *     responses:
+ *       200:
+ *         description: Invite link details retrieved successfully
+ *       400:
+ *         description: Invalid or expired invite code
+ */
+router.get('/invite/check', async (req, res) => {
+  try {
+    const { inviteCode } = req.query;
+    
+    if (!inviteCode) {
+      return errorResponse(res, 400, 'Invite code is required');
+    }
+
+    const inviteDetails = await InviteService.getInviteLinkDetails(inviteCode);
+    
+    if (!inviteDetails) {
+      return errorResponse(res, 400, 'Invalid invite code');
+    }
+
+    return successResponse(res, 200, 'Invite link details retrieved successfully', { 
+      inviteDetails 
+    });
+  } catch (error) {
+    return errorResponse(res, 400, error.message);
+  }
+});
+
 // All other routes require authentication
 router.use(authenticate);
 
@@ -783,49 +826,6 @@ router.get('/invite/my-links', async (req, res) => {
     });
   } catch (error) {
     return serverErrorResponse(res, 'Failed to retrieve invite links', error);
-  }
-});
-
-/**
- * @swagger
- * /api/contracts/invite/check:
- *   get:
- *     summary: Check invite link details (public)
- *     description: Check if an invite code is valid and get inviter details (public endpoint)
- *     tags: [Contracts]
- *     security: []
- *     parameters:
- *       - in: query
- *         name: inviteCode
- *         required: true
- *         schema:
- *           type: string
- *         description: The invite code to check
- *     responses:
- *       200:
- *         description: Invite link details retrieved successfully
- *       400:
- *         description: Invalid or expired invite code
- */
-router.get('/invite/check', async (req, res) => {
-  try {
-    const { inviteCode } = req.query;
-    
-    if (!inviteCode) {
-      return errorResponse(res, 400, 'Invite code is required');
-    }
-
-    const inviteDetails = await InviteService.getInviteLinkDetails(inviteCode);
-    
-    if (!inviteDetails) {
-      return errorResponse(res, 400, 'Invalid invite code');
-    }
-
-    return successResponse(res, 200, 'Invite link details retrieved successfully', { 
-      inviteDetails 
-    });
-  } catch (error) {
-    return errorResponse(res, 400, error.message);
   }
 });
 

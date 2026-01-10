@@ -220,9 +220,13 @@ class RefundService {
    * Process refund for a single unit
    * - Deletes the unit
    * - Refunds the unit's advance payment to user's wallet
+   * - Re-places all children (subtree) following placement rules
    * - Marks unit as refunded
    */
   static async processUnitRefund(unitId, userId) {
+    const SubtreeReplacementService = require('./subtreeReplacementService');
+    
+    // Increase transaction timeout for subtree operations (default is 5s, we need more for large subtrees)
     return await database.getClient().$transaction(async (tx) => {
       const unit = await tx.unit.findUnique({
         where: { id: unitId },
@@ -241,8 +245,78 @@ class RefundService {
         throw new Error('You can only refund your own units');
       }
 
+      // Check if unit is system root (cannot be cancelled)
+      if (unit.isSystemRoot) {
+        throw new Error('System root units cannot be cancelled');
+      }
+
       // Check eligibility
       await this.isUnitEligibleForRefund(unitId);
+
+      // Check if this is the first unit of a set (101, 105, 109, 113, 117...)
+      // First units: (unitNumber - 101) % 4 === 0
+      const isFirstUnitOfSet = unit.unitNumber >= 101 && (unit.unitNumber - 101) % 4 === 0;
+      
+      logger.info(`Unit ${unit.unitName} (${unit.unitNumber}): First unit of set = ${isFirstUnitOfSet}`);
+
+      // Get all direct children before deletion
+      const children = await tx.unit.findMany({
+        where: { parentUnitId: unitId },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      logger.info(`Unit ${unit.unitName} has ${children.length} direct children`);
+
+      if (isFirstUnitOfSet) {
+        // First unit of set (101, 105, 109...): DELETE entire subtree
+        logger.info(`Deleting entire subtree for first unit ${unit.unitNumber}`);
+        
+        if (children.length > 0) {
+          // Collect all descendant IDs using breadth-first search
+          const allDescendantIds = [];
+          const queue = [...children.map(c => c.id)];
+          
+          while (queue.length > 0) {
+            const currentId = queue.shift();
+            allDescendantIds.push(currentId);
+            
+            // Get children of current unit
+            const grandchildren = await tx.unit.findMany({
+              where: { parentUnitId: currentId },
+              select: { id: true }
+            });
+            
+            queue.push(...grandchildren.map(gc => gc.id));
+          }
+          
+          logger.info(`Found ${allDescendantIds.length} total descendants to delete`);
+          
+          // Delete all descendants in reverse order (deepest first to avoid foreign key issues)
+          for (const descendantId of allDescendantIds.reverse()) {
+            await tx.unit.delete({ where: { id: descendantId } });
+          }
+          
+          logger.info(`Deleted entire subtree (${allDescendantIds.length} units)`);
+        }
+      } else {
+        // Other units (102, 103, 104, 106...): DETACH children for re-placement
+        logger.info(`Detaching children for re-placement (not first unit)`);
+        
+        if (children.length > 0) {
+          await tx.unit.updateMany({
+            where: { parentUnitId: unitId },
+            data: { parentUnitId: null }
+          });
+          logger.info(`Detached ${children.length} children from unit ${unit.unitName}`);
+        }
+      }
 
       // Calculate refund amount based on stage
       let refundAmount = 0;
@@ -254,11 +328,34 @@ class RefundService {
         refundAmount = Number(unit.contractGame.advancePaymentStage3);
       }
 
+      // Store parent unit ID before deletion (for re-placement)
+      const parentUnitId = unit.parentUnitId;
+
       // Delete the unit
       await tx.unit.delete({
         where: { id: unitId }
       });
       logger.info(`Deleted unit ${unit.unitName} (${unitId}) for refund`);
+
+      // Re-place subtree ONLY if NOT first unit of set
+      if (!isFirstUnitOfSet && children.length > 0 && parentUnitId) {
+        try {
+          const replacementResult = await SubtreeReplacementService.replaceSubtree(
+            children,
+            parentUnitId,
+            tx
+          );
+          logger.info(`Subtree re-placement completed: ${replacementResult.replaced} units re-placed`);
+        } catch (error) {
+          logger.error(`Error during subtree re-placement:`, error);
+          // Don't fail the entire refund if re-placement has issues
+          // The units are already detached and can be manually fixed
+        }
+      } else if (!isFirstUnitOfSet && children.length > 0 && !parentUnitId) {
+        logger.warn(`Unit ${unit.unitName} had children but no parent - children will remain detached`);
+      } else if (isFirstUnitOfSet && children.length > 0) {
+        logger.info(`First unit of set: Entire subtree deleted (no re-placement)`);
+      }
 
       // Refund to wallet
       await WalletService.addToWallet(
@@ -270,13 +367,26 @@ class RefundService {
 
       logger.info(`Refunded unit ${unitId}: ${refundAmount} to user ${userId}`);
 
+      // Calculate how many units were affected
+      let affectedUnitsCount = children.length;
+      if (isFirstUnitOfSet && children.length > 0) {
+        // For first unit, count all descendants that were deleted
+        affectedUnitsCount = children.length; // This was already counted in getAllDescendants
+      }
+
       return {
         unitId,
         unitName: unit.unitName,
         unitNumber: unit.unitNumber,
         stage: unit.stage,
         refundAmount,
+        isFirstUnitOfSet,
+        childrenAffected: children.length,
+        subtreeDeleted: isFirstUnitOfSet,
+        childrenReplaced: !isFirstUnitOfSet ? children.length : 0
       };
+    }, {
+      timeout: 15000 // 15 seconds timeout for subtree operations
     }).then(async (result) => {
       // Cancel any held payouts for this unit (outside transaction)
       const PayoutReleaseService = require('./payoutReleaseService');
