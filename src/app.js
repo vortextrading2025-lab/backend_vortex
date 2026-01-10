@@ -231,6 +231,10 @@ setImmediate(async () => {
   }
 });
 
+// Start fulfillment job (checks for units past cooldown and processes fulfillments)
+const FulfillmentJob = require('./jobs/fulfillmentJob');
+FulfillmentJob.start();
+
 // Store server instance for error handling and graceful shutdown
 const server = app.listen(PORT, () => {
   // Environment-specific startup messages
