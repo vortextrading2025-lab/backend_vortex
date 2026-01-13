@@ -29811,3 +29811,240 @@
 {"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-10 07:04:01:41"}
 {"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 07:04:03:43"}
 {"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-10 07:04:06:46"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-10 07:13:07:137"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 07:13:08:138"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-10 07:13:12:1312"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 07:13:13:1313"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 07:13:14:1314"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 07:13:14:1314"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 07:13:14:1314"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 07:13:14:1314"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-10 07:13:14:1314"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-10 07:13:21:1321"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-10 07:13:21:1321"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-10 07:13:21:1321"}
+{"clientVersion":"5.22.0","code":"P1001","level":"\u001b[31merror\u001b[39m","message":"\u001b[31mError getting user contracts: \u001b[39m\n\u001b[31mInvalid `database.getClient().unit.count()` invocation in\u001b[39m\n\u001b[31mC:\\Codebase\\vortex\\backend_vortex\\src\\modules\\user\\units.js:313:71\u001b[39m\n\n\u001b[31m  310 // Stage 1: need 4 units in level 4 (unit.level + 3)\u001b[39m\n\u001b[31m  311 // Stage 2/3: need 4 units in level 3 (unit.level + 2)\u001b[39m\n\u001b[31m  312 const requiredLevel = unit.stage === 1 ? unit.level + 3 : unit.level + 2;\u001b[39m\n\u001b[31m→ 313 const childrenInRequiredLevel = await database.getClient().unit.count(\u001b[39m\n\u001b[31mCan't reach database server at `shortline.proxy.rlwy.net:13904`\u001b[39m\n\n\u001b[31mPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\u001b[39m","meta":{"database_host":"shortline.proxy.rlwy.net","database_port":13904,"modelName":"Unit"},"name":"PrismaClientKnownRequestError","stack":"PrismaClientKnownRequestError: \nInvalid `database.getClient().unit.count()` invocation in\nC:\\Codebase\\vortex\\backend_vortex\\src\\modules\\user\\units.js:313:71\n\n  310 // Stage 1: need 4 units in level 4 (unit.level + 3)\n  311 // Stage 2/3: need 4 units in level 3 (unit.level + 2)\n  312 const requiredLevel = unit.stage === 1 ? unit.level + 3 : unit.level + 2;\n→ 313 const childrenInRequiredLevel = await database.getClient().unit.count(\nCan't reach database server at `shortline.proxy.rlwy.net:13904`\n\nPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\n    at $n.handleRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)\n    at $n.handleAndLogRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)\n    at $n.request (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)\n    at async l (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)\n    at async C:\\Codebase\\vortex\\backend_vortex\\src\\modules\\user\\units.js:313:39\n    at async Promise.all (index 9)\n    at async C:\\Codebase\\vortex\\backend_vortex\\src\\modules\\user\\units.js:298:23","timestamp":"2026-01-10 07:13:40:1340"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 08:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 08:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 08:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 08:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 08:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 08:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 08:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 09:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 09:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 09:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 09:00:08:08"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 09:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 09:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 09:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 09:28:38:2838"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 10:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 10:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 10:00:08:08"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 10:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 10:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 10:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 10:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 10:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 11:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 11:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 11:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 11:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 11:28:39:2839"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 12:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 12:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 12:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 12:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 12:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 12:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 12:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 12:28:36:2836"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 13:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 13:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 13:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 13:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 13:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 13:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 13:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 13:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 14:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 14:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 14:00:08:08"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 14:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 14:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 14:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 14:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 14:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 15:00:00:00"}
+{"clientVersion":"5.22.0","code":"P1001","level":"\u001b[31merror\u001b[39m","message":"\u001b[31m❌ Fulfillment job error: \u001b[39m\n\u001b[31mInvalid `prisma.unit.findMany()` invocation in\u001b[39m\n\u001b[31mC:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:51\u001b[39m\n\n\u001b[31m  54 // 1. Have passed cooldown period\u001b[39m\n\u001b[31m  55 // 2. Are not completed\u001b[39m\n\u001b[31m  56 // 3. Are not system root\u001b[39m\n\u001b[31m→ 57 const unitsPassedCooldown = await prisma.unit.findMany(\u001b[39m\n\u001b[31mCan't reach database server at `shortline.proxy.rlwy.net:13904`\u001b[39m\n\n\u001b[31mPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\u001b[39m","meta":{"database_host":"shortline.proxy.rlwy.net","database_port":13904,"modelName":"Unit"},"name":"PrismaClientKnownRequestError","stack":"PrismaClientKnownRequestError: \nInvalid `prisma.unit.findMany()` invocation in\nC:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:51\n\n  54 // 1. Have passed cooldown period\n  55 // 2. Are not completed\n  56 // 3. Are not system root\n→ 57 const unitsPassedCooldown = await prisma.unit.findMany(\nCan't reach database server at `shortline.proxy.rlwy.net:13904`\n\nPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\n    at $n.handleRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)\n    at $n.handleAndLogRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)\n    at $n.request (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)\n    at async l (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)\n    at async FulfillmentJob.processPendingFulfillments (C:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:33)\n    at async Task._execution (C:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:22:9)","timestamp":"2026-01-10 15:00:05:05"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 15:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 16:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 16:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 16:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 16:00:08:08"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 16:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 16:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 16:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 16:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 17:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 17:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 17:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 17:28:37:2837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 18:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 18:00:05:05"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 18:00:09:09"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 18:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 18:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 18:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 18:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 18:28:41:2841"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-10 19:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-10 19:00:05:05"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 19:00:09:09"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-10 19:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-10 19:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-10 19:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-10 19:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-10 19:28:39:2839"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-11 17:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-11 17:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 17:00:03:03"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-11 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-11 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-11 17:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-11 17:32:29:3229"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-11 18:32:29:3229"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-11 19:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-11 19:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 19:00:03:03"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 19:00:04:04"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-11 19:00:04:04"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-11 19:00:04:04"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-11 19:00:04:04"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-11 19:32:28:3228"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-11 20:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-11 20:00:06:06"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 20:00:10:010"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 20:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-11 20:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-11 20:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-11 20:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-11 20:32:31:3231"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-11 21:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-11 21:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 21:00:09:09"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-11 21:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-11 21:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-11 21:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-11 21:00:11:011"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-11 21:32:28:3228"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-12 19:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-12 19:00:06:06"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 19:00:11:011"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 19:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-12 19:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-12 19:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-12 19:00:13:013"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-12 19:27:36:2736"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-12 20:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-12 20:00:05:05"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 20:00:08:08"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 20:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-12 20:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-12 20:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-12 20:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-12 20:27:34:2734"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-12 21:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-12 21:00:06:06"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 21:00:10:010"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-12 21:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-12 21:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-12 21:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-12 21:00:12:012"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-12 21:27:34:2734"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 02:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 02:00:05:05"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 02:00:08:08"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 02:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 02:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 02:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 02:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 02:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 03:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 03:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 03:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 03:00:08:08"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 03:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 03:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 03:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 03:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 04:00:00:00"}
+{"clientVersion":"5.22.0","code":"P1001","level":"\u001b[31merror\u001b[39m","message":"\u001b[31m❌ Fulfillment job error: \u001b[39m\n\u001b[31mInvalid `prisma.unit.findMany()` invocation in\u001b[39m\n\u001b[31mC:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:51\u001b[39m\n\n\u001b[31m  54 // 1. Have passed cooldown period\u001b[39m\n\u001b[31m  55 // 2. Are not completed\u001b[39m\n\u001b[31m  56 // 3. Are not system root\u001b[39m\n\u001b[31m→ 57 const unitsPassedCooldown = await prisma.unit.findMany(\u001b[39m\n\u001b[31mCan't reach database server at `shortline.proxy.rlwy.net:13904`\u001b[39m\n\n\u001b[31mPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\u001b[39m","meta":{"database_host":"shortline.proxy.rlwy.net","database_port":13904,"modelName":"Unit"},"name":"PrismaClientKnownRequestError","stack":"PrismaClientKnownRequestError: \nInvalid `prisma.unit.findMany()` invocation in\nC:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:51\n\n  54 // 1. Have passed cooldown period\n  55 // 2. Are not completed\n  56 // 3. Are not system root\n→ 57 const unitsPassedCooldown = await prisma.unit.findMany(\nCan't reach database server at `shortline.proxy.rlwy.net:13904`\n\nPlease make sure your database server is running at `shortline.proxy.rlwy.net:13904`.\n    at $n.handleRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)\n    at $n.handleAndLogRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)\n    at $n.request (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)\n    at async l (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)\n    at async FulfillmentJob.processPendingFulfillments (C:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:57:33)\n    at async Task._execution (C:\\Codebase\\vortex\\backend_vortex\\src\\jobs\\fulfillmentJob.js:22:9)","timestamp":"2026-01-13 04:00:05:05"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 04:01:21:121"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 05:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 05:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 05:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 05:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 05:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 05:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 05:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 05:01:18:118"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 06:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 06:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 06:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 06:00:08:08"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 06:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 06:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 06:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 06:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 07:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 07:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 07:00:07:07"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 07:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 07:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 07:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 07:00:09:09"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 07:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 08:01:21:121"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 09:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 09:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 09:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 09:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 09:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 09:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 09:00:02:02"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 09:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 10:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 10:00:04:04"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 10:00:08:08"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 10:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 10:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 10:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 10:00:10:010"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 10:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-13 11:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 11:00:01:01"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 11:00:02:02"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-13 11:00:03:03"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 11:01:19:119"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-13 11:24:36:2436"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-13 11:24:37:2437"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-13 11:24:41:2441"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mFound 2 units past cooldown period\u001b[39m","timestamp":"2026-01-13 11:24:42:2442"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk6vz1wa00003uhig01qieod_101 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 11:24:43:2443"}
+{"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37m⏭️  Unit cmk7miw2b00009caygrr936zw_103 skipped - not ready for fulfillment\u001b[39m","timestamp":"2026-01-13 11:24:43:2443"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo pending payouts to process\u001b[39m","timestamp":"2026-01-13 11:24:43:2443"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m\u001b[39m\n\u001b[32m📊 Fulfillment Job Summary:\u001b[39m\n\u001b[32m   - Total units checked: 2\u001b[39m\n\u001b[32m   - Fulfilled: 0\u001b[39m\n\u001b[32m   - Skipped: 2\u001b[39m\n\u001b[32m   - Errors: 0\u001b[39m\n\u001b[32m    \u001b[39m","timestamp":"2026-01-13 11:24:43:2443"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-13 11:24:43:2443"}
