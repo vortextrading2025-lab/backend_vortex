@@ -1,2 +1,15 @@
 ./node_modules
 node_modules
+
+.env 
+.env.development
+.env.production
+.env.test
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
