@@ -446,8 +446,7 @@ class PurchaseService {
       };
     }, {
       maxWait: 60000, // 60 seconds max wait for transaction to start
-      timeout: 120000,  // 120 seconds (2 minutes) timeout for transaction to complete (BFS search can be slow for deep trees)
-      maxWait: 5000  // 5 seconds max wait to start transaction
+      timeout: 180000  // 180 seconds (3 minutes) timeout for transaction to complete (BFS search can be slow for deep trees)
     }).then(async (result) => {
       // Cooldown was already set when purchase request was created (in createPurchaseRequest)
       // No need to set it again here - it's already set to 14 days from purchase creation
