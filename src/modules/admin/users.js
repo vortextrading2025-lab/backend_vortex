@@ -413,51 +413,26 @@ router.get('/:id/orders', async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20, status = null } = req.query;
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const prisma = database.getClient();
 
-    const where = {
-      userId: id,
-      ...(status && { status }),
+    // Verify user exists
+    const user = await database.getClient().user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      return sendError(res, new Error('User not found'), 404);
+    }
+
+    const filters = {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      status: status || null,
     };
 
-    const [orders, total] = await Promise.all([
-      prisma.order.findMany({
-        where,
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              price: true,
-              image: true,
-            },
-          },
-          vendor: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: parseInt(limit, 10),
-      }),
-      prisma.order.count({ where }),
-    ]);
+    const orderService = require('../../services/orderService');
+    const result = await orderService.listUserOrders(id, filters);
 
-    sendResponse(res, 200, {
-      orders,
-      pagination: {
-        page: parseInt(page, 10),
-        limit: parseInt(limit, 10),
-        total,
-        totalPages: Math.ceil(total / parseInt(limit, 10)),
-      },
-    }, 'User orders retrieved successfully');
+    sendResponse(res, 200, result, 'User orders retrieved successfully');
   } catch (error) {
     sendError(res, error);
   }
