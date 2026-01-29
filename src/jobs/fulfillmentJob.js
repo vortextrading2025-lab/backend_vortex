@@ -29,11 +29,19 @@ class FulfillmentJob {
     // Also run immediately on startup
     setTimeout(async () => {
       try {
+        // Check if database is connected first
+        await database.connect();
         logger.info('🚀 Running fulfillment job on startup...');
         await this.processPendingFulfillments();
         logger.info('✅ Startup fulfillment job completed');
       } catch (error) {
-        logger.error('❌ Startup fulfillment job error:', error);
+        if (error.code === 'P1001') {
+          logger.warn('⚠️  Database not reachable, skipping startup fulfillment job');
+          logger.warn(`   → Database URL: ${process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@') : 'NOT SET'}`);
+          logger.warn('   → Check: 1) Database is running, 2) IP is whitelisted, 3) Connection string is correct');
+        } else {
+          logger.error('❌ Startup fulfillment job error:', error);
+        }
       }
     }, 5000); // Wait 5 seconds after startup
 
@@ -50,11 +58,13 @@ class FulfillmentJob {
     const prisma = database.getClient();
     const now = new Date();
 
-    // Find all units that:
-    // 1. Have passed cooldown period
-    // 2. Are not completed
-    // 3. Are not system root
-    const unitsPassedCooldown = await prisma.unit.findMany({
+    let unitsPassedCooldown;
+    try {
+      // Find all units that:
+      // 1. Have passed cooldown period
+      // 2. Are not completed
+      // 3. Are not system root
+      unitsPassedCooldown = await prisma.unit.findMany({
       where: {
         cooldownEndsAt: {
           lte: now // Cooldown has ended
@@ -90,6 +100,21 @@ class FulfillmentJob {
         }
       }
     });
+    } catch (error) {
+      if (error.code === 'P1001') {
+        logger.error('❌ Database connection failed in fulfillment job');
+        logger.error(`   → Cannot reach database server at: ${process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'UNKNOWN'}`);
+        logger.error('   → Possible issues:');
+        logger.error('      1. Database server is not running');
+        logger.error('      2. Your IP address is not whitelisted in DigitalOcean');
+        logger.error('      3. Firewall is blocking the connection');
+        logger.error('      4. Connection string is incorrect');
+        throw error; // Re-throw to be caught by caller
+      } else {
+        logger.error('❌ Database query error in fulfillment job:', error);
+        throw error;
+      }
+    }
 
     if (unitsPassedCooldown.length === 0) {
       logger.info('No units found past cooldown period');
