@@ -8,7 +8,7 @@ const logger = require('../modules/logging/logger');
 const tokenSchema = z.object({
   userId: z.string(),
   sessionId: z.string(),
-  role: z.enum(['USER', 'VENDOR', 'MENTOR', 'ADMIN']),
+  role: z.enum(['USER', 'VENDOR', 'MENTOR', 'ADMIN', 'MODERATOR', 'SUPPORT', 'ANALYST']),
   iat: z.number(),
   exp: z.number()
 });
@@ -109,7 +109,7 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Get user from database
+    // Get user from database with permissions and role
     const user = await database.getClient().user.findUnique({
       where: { id: validatedToken.userId },
       include: {
@@ -220,6 +220,58 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+// Helper function to check if user has permission (checks both role permissions and direct permissions)
+const hasPermission = async (userId, resource, action) => {
+  const user = await database.getClient().user.findUnique({
+    where: { id: userId },
+    include: {
+      permissions: {
+        include: {
+          permission: true
+        }
+      }
+    }
+  });
+
+  if (!user) return false;
+
+  // ADMIN has all permissions
+  if (user.role === 'ADMIN') {
+    return true;
+  }
+
+  // Check direct user permissions
+  const hasDirectPermission = user.permissions.some(
+    userPerm => 
+      userPerm.permission.resource === resource && 
+      userPerm.permission.action === action
+  );
+
+  if (hasDirectPermission) {
+    return true;
+  }
+
+  // Check role-based permissions
+  // Find role by name matching user's role
+  const role = await database.getClient().role.findUnique({
+    where: { name: user.role },
+    include: {
+      permissions: true
+    }
+  });
+
+  if (role) {
+    const hasRolePermission = role.permissions.some(
+      perm => perm.resource === resource && perm.action === action
+    );
+    if (hasRolePermission) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Role-based authorization
 const authorize = (...roles) => {
   return (req, res, next) => {
@@ -236,6 +288,11 @@ const authorize = (...roles) => {
 
     // Flatten roles array in case it's nested (e.g., authorize(['VENDOR']) creates [['VENDOR']])
     const flatRoles = roles.flat();
+
+    // ADMIN can access any route guarded by authorize()
+    if (userRole === 'ADMIN') {
+      return next();
+    }
 
     // Debug logging
     logger.debug(`Authorization check: User ${req.user.id} (${req.user.email}) has role ${userRole}, required roles: ${flatRoles.join(', ')}`);
@@ -260,7 +317,7 @@ const authorize = (...roles) => {
 
 // Permission-based authorization
 const requirePermission = (resource, action) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -273,21 +330,45 @@ const requirePermission = (resource, action) => {
       return next();
     }
 
-    // Check user permissions
-    const hasPermission = req.user.permissions.some(
+    // Check direct user permissions first
+    const hasDirectPermission = req.user.permissions.some(
       userPerm => 
         userPerm.permission.resource === resource && 
         userPerm.permission.action === action
     );
 
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        message: `Permission denied: ${action} ${resource}`
-      });
+    if (hasDirectPermission) {
+      return next();
     }
 
-    next();
+    // Check role-based permissions
+    const role = await database.getClient().role.findUnique({
+      where: { name: req.user.role },
+      include: {
+        permissions: true
+      }
+    });
+
+    if (role) {
+      const hasRolePermission = role.permissions.some(
+        perm => perm.resource === resource && perm.action === action
+      );
+      if (hasRolePermission) {
+        return next();
+      }
+    }
+
+    logger.warn(`Permission denied: User ${req.user.id} (${req.user.email}) with role ${req.user.role} attempted ${action} on ${resource}`);
+    return res.status(403).json({
+      success: false,
+      message: `Permission denied: ${action} ${resource}`,
+      details: {
+        resource,
+        action,
+        userRole: req.user.role,
+        userId: req.user.id
+      }
+    });
   };
 };
 
@@ -333,5 +414,6 @@ module.exports = {
   authenticate,
   authorize,
   requirePermission,
-  optionalAuth
+  optionalAuth,
+  hasPermission
 };

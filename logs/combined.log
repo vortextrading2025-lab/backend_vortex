@@ -30867,3 +30867,190 @@
 {"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37mAuthorization check: User cmkdwifjz00007h49lgacr4d4 (admin99@gmail.com) has role ADMIN, required roles: ADMIN\u001b[39m","timestamp":"2026-01-18 16:34:20:3420"}
 {"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37mAuthorization check: User cmkdwifjz00007h49lgacr4d4 (admin99@gmail.com) has role ADMIN, required roles: ADMIN\u001b[39m","timestamp":"2026-01-18 16:35:56:3556"}
 {"level":"\u001b[37mdebug\u001b[39m","message":"\u001b[37mAuthorization check: User cmkdwifjz00007h49lgacr4d4 (admin99@gmail.com) has role ADMIN, required roles: ADMIN\u001b[39m","timestamp":"2026-01-18 16:36:26:3626"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:39:02:392"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:39:03:393"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:39:07:397"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:39:07:397"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:39:07:397"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:39:52:3952"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:39:53:3953"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:39:57:3957"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:39:57:3957"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:39:57:3957"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:53:12:5312"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:53:12:5312"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:53:17:5317"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:53:17:5317"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:53:17:5317"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:53:34:5334"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:53:35:5335"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:53:39:5339"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:53:39:5339"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:53:39:5339"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:53:47:5347"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:53:47:5347"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:53:52:5352"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:53:53:5353"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:53:57:5357"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:53:57:5357"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:53:57:5357"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:54:08:548"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:54:09:549"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:54:13:5413"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:54:13:5413"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:54:13:5413"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:54:17:5417"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:54:17:5417"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:54:22:5422"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:54:22:5422"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:54:27:5427"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:54:27:5427"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:54:27:5427"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:55:23:5523"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:55:23:5523"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:55:28:5528"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:55:28:5528"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:55:28:5528"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:55:40:5540"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:55:40:5540"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:55:45:5545"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:55:45:5545"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:55:45:5545"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:25:5625"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:26:5626"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:31:5631"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:31:5631"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:56:36:5636"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:56:36:5636"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:56:36:5636"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:42:5642"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:42:5642"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:47:5647"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:47:5647"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:52:5652"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:53:5653"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:56:57:5657"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:56:57:5657"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:02:572"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:02:572"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:07:577"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:07:577"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:12:5712"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:12:5712"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:17:5717"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:17:5717"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:22:5722"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:22:5722"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:57:27:5727"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:57:27:5727"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:57:27:5727"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:34:5734"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:34:5734"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:39:5739"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:40:5740"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:57:44:5744"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:57:44:5744"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:57:44:5744"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:51:5751"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:51:5751"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:57:56:5756"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:57:56:5756"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:01:581"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:01:581"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:06:586"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:06:586"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:11:5811"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:11:5811"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:16:5816"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:16:5816"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:21:5821"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:22:5822"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:27:5827"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:27:5827"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:32:5832"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:32:5832"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:37:5837"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:38:5838"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:43:5843"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:43:5843"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 10:58:48:5848"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 10:58:48:5848"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 10:58:53:5853"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 10:58:53:5853"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 10:58:53:5853"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-29 11:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 11:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-29 11:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 11:05:39:539"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 11:05:39:539"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 11:05:44:544"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 11:05:44:544"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 11:05:44:544"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-29 11:47:21:4721"}
+{"action":"LOGIN","auditLogId":"cmkz2b0ef0005enbdrfwlgfcu","ipAddress":"::1","level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mAUDIT: LOGIN - User logged in successfully\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 11:47:26:4726","userAgent":"axios/1.13.2","userId":"cmkdwifjz00007h49lgacr4d4"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mUser logged in: admin99@gmail.com\u001b[39m","timestamp":"2026-01-29 11:47:26:4726"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 11:54:07:547"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 11:54:08:548"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 11:54:12:5412"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 11:54:12:5412"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 11:54:12:5412"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 11:55:12:5512"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 11:55:12:5512"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 11:55:17:5517"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 11:55:17:5517"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 11:55:17:5517"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 11:55:26:5526"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 11:55:26:5526"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 11:55:31:5531"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 11:55:31:5531"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 11:55:31:5531"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-29 12:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 12:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-29 12:00:00:00"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-29 12:02:32:232"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-29 12:02:32:232"}
+{"action":"LOGIN","auditLogId":"cmkz2uix7002h4fgenva35tso","ipAddress":"::1","level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mAUDIT: LOGIN - User logged in successfully\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:02:36:236","userAgent":"axios/1.13.2","userId":"cmkdwifjz00007h49lgacr4d4"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mUser logged in: admin99@gmail.com\u001b[39m","timestamp":"2026-01-29 12:02:36:236"}
+{"level":"\u001b[31merror\u001b[39m","message":"\u001b[31mAuthentication error: \u001b[39m\n\u001b[31mInvalid `database.getClient().user.findUnique()` invocation in\u001b[39m\n\u001b[31mC:\\Codebase\\vortex\\backend_vortex\\src\\middleware\\auth.js:113:50\u001b[39m\n\n\u001b[31m  110 }\u001b[39m\n\u001b[31m  111 \u001b[39m\n\u001b[31m  112 // Get user from database with permissions and role\u001b[39m\n\u001b[31m→ 113 const user = await database.getClient().user.findUnique(\u001b[39m\n\u001b[31mCan't reach database server at `db-postgresql-blr1-83292-do-user-27213329-0.j.db.ondigitalocean.com:25060`\u001b[39m\n\n\u001b[31mPlease make sure your database server is running at `db-postgresql-blr1-83292-do-user-27213329-0.j.db.ondigitalocean.com:25060`.\u001b[39m","name":"PrismaClientKnownRequestError","stack":"PrismaClientKnownRequestError: \nInvalid `database.getClient().user.findUnique()` invocation in\nC:\\Codebase\\vortex\\backend_vortex\\src\\middleware\\auth.js:113:50\n\n  110 }\n  111 \n  112 // Get user from database with permissions and role\n→ 113 const user = await database.getClient().user.findUnique(\nCan't reach database server at `db-postgresql-blr1-83292-do-user-27213329-0.j.db.ondigitalocean.com:25060`\n\nPlease make sure your database server is running at `db-postgresql-blr1-83292-do-user-27213329-0.j.db.ondigitalocean.com:25060`.\n    at $n.handleRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)\n    at $n.handleAndLogRequestError (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)\n    at $n.request (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)\n    at async l (C:\\Codebase\\vortex\\backend_vortex\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)\n    at async authenticate (C:\\Codebase\\vortex\\backend_vortex\\src\\middleware\\auth.js:113:18)","timestamp":"2026-01-29 12:14:36:1436"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 12:14:44:1444"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 12:14:44:1444"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 12:14:49:1449"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 12:14:49:1449"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 12:14:49:1449"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-29 12:18:15:1815"}
+{"level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mToken expired:\u001b[39m","timestamp":"2026-01-29 12:18:15:1815"}
+{"action":"LOGIN","auditLogId":"cmkz3epsi000514bssdg1130l","ipAddress":"::1","level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mAUDIT: LOGIN - User logged in successfully\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:18:18:1818","userAgent":"axios/1.13.2","userId":"cmkdwifjz00007h49lgacr4d4"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mUser logged in: admin99@gmail.com\u001b[39m","timestamp":"2026-01-29 12:18:18:1818"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 12:19:59:1959"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 12:20:00:200"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 12:20:04:204"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 12:20:04:204"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 12:20:04:204"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 12:20:32:2032"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 12:20:33:2033"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 12:20:37:2037"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 12:20:37:2037"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 12:20:37:2037"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m📅 Fulfillment job scheduled (runs every hour)\u001b[39m","timestamp":"2026-01-29 12:23:36:2336"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 12:23:37:2337"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🚀 Running fulfillment job on startup...\u001b[39m","timestamp":"2026-01-29 12:23:41:2341"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 12:23:42:2342"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Startup fulfillment job completed\u001b[39m","timestamp":"2026-01-29 12:23:42:2342"}
+{"action":"LOGIN","auditLogId":"cmkz3vyak000112jecwv1mu6v","ipAddress":"::1","level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mAUDIT: LOGIN - Failed login attempt - user not found\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:31:42:3142","userAgent":"axios/1.13.2","userId":null}
+{"action":"LOGIN","auditLogId":"cmkz3vz74000312jewiokj9r3","ipAddress":"::1","level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mAUDIT: LOGIN - Failed login attempt - user not found\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:31:43:3143","userAgent":"axios/1.13.2","userId":null}
+{"action":"LOGIN","auditLogId":"cmkz3w97g000512jef7qg2456","ipAddress":"::1","level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mAUDIT: LOGIN - Failed login attempt - user not found\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:31:56:3156","userAgent":"axios/1.13.2","userId":null}
+{"action":"LOGIN","auditLogId":"cmkz3w9qf000712je93ipqqp6","ipAddress":"::1","level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mAUDIT: LOGIN - Failed login attempt - user not found\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:31:57:3157","userAgent":"axios/1.13.2","userId":null}
+{"action":"LOGIN","auditLogId":"cmkz3wa1q000912jex23i5pdo","ipAddress":"::1","level":"\u001b[33mwarn\u001b[39m","message":"\u001b[33mAUDIT: LOGIN - Failed login attempt - user not found\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 12:31:57:3157","userAgent":"axios/1.13.2","userId":null}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-29 13:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 13:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-29 13:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 13:23:37:2337"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-29 14:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 14:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-29 14:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo held payouts to release\u001b[39m","timestamp":"2026-01-29 14:23:37:2337"}
+{"action":"LOGIN","auditLogId":"cmkz86d50000f12je581kvz7v","ipAddress":"::1","level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mAUDIT: LOGIN - User logged in successfully\u001b[39m","resource":null,"resourceId":null,"timestamp":"2026-01-29 14:31:46:3146","userAgent":"axios/1.13.2","userId":"cmkdwifjz00007h49lgacr4d4"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mUser logged in: admin99@gmail.com\u001b[39m","timestamp":"2026-01-29 14:31:46:3146"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m🕐 Fulfillment job started...\u001b[39m","timestamp":"2026-01-29 15:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32mNo units found past cooldown period\u001b[39m","timestamp":"2026-01-29 15:00:00:00"}
+{"level":"\u001b[32minfo\u001b[39m","message":"\u001b[32m✅ Fulfillment job completed\u001b[39m","timestamp":"2026-01-29 15:00:00:00"}

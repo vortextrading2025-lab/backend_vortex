@@ -5,22 +5,64 @@ const seedDatabase = async () => {
   try {
     console.log('🌱 Starting database seeding...');
 
-    // Create permissions
+    // Create comprehensive permissions
     const permissions = [
+      // User permissions
+      { name: 'users.view', description: 'View users', resource: 'users', action: 'view' },
       { name: 'users.create', description: 'Create users', resource: 'users', action: 'create' },
-      { name: 'users.read', description: 'Read users', resource: 'users', action: 'read' },
       { name: 'users.update', description: 'Update users', resource: 'users', action: 'update' },
       { name: 'users.delete', description: 'Delete users', resource: 'users', action: 'delete' },
+      { name: 'users.block', description: 'Block/unblock users', resource: 'users', action: 'block' },
+      { name: 'users.viewDetails', description: 'View user details', resource: 'users', action: 'viewDetails' },
+      
+      // Vendor permissions
+      { name: 'vendors.view', description: 'View vendors', resource: 'vendors', action: 'view' },
+      { name: 'vendors.create', description: 'Create vendors', resource: 'vendors', action: 'create' },
+      { name: 'vendors.update', description: 'Update vendors', resource: 'vendors', action: 'update' },
+      { name: 'vendors.delete', description: 'Delete vendors', resource: 'vendors', action: 'delete' },
+      { name: 'vendors.verify', description: 'Verify vendors', resource: 'vendors', action: 'verify' },
+      
+      // Order permissions
+      { name: 'orders.view', description: 'View orders', resource: 'orders', action: 'view' },
+      { name: 'orders.update', description: 'Update orders', resource: 'orders', action: 'update' },
+      { name: 'orders.cancel', description: 'Cancel orders', resource: 'orders', action: 'cancel' },
+      { name: 'orders.refund', description: 'Refund orders', resource: 'orders', action: 'refund' },
+      
+      // Contract permissions
+      { name: 'contracts.view', description: 'View contracts', resource: 'contracts', action: 'view' },
+      { name: 'contracts.manage', description: 'Manage contracts', resource: 'contracts', action: 'manage' },
+      { name: 'contracts.approve', description: 'Approve contracts', resource: 'contracts', action: 'approve' },
+      
+      // Product permissions
+      { name: 'products.view', description: 'View products', resource: 'products', action: 'view' },
       { name: 'products.create', description: 'Create products', resource: 'products', action: 'create' },
-      { name: 'products.read', description: 'Read products', resource: 'products', action: 'read' },
       { name: 'products.update', description: 'Update products', resource: 'products', action: 'update' },
       { name: 'products.delete', description: 'Delete products', resource: 'products', action: 'delete' },
-      { name: 'orders.create', description: 'Create orders', resource: 'orders', action: 'create' },
-      { name: 'orders.read', description: 'Read orders', resource: 'orders', action: 'read' },
-      { name: 'orders.update', description: 'Update orders', resource: 'orders', action: 'update' },
-      { name: 'orders.delete', description: 'Delete orders', resource: 'orders', action: 'delete' },
-      { name: 'admin.access', description: 'Admin access', resource: 'admin', action: 'access' },
-      { name: 'audit.read', description: 'Read audit logs', resource: 'audit', action: 'read' }
+      
+      // Settlement permissions
+      { name: 'settlements.view', description: 'View settlements', resource: 'settlements', action: 'view' },
+      { name: 'settlements.approve', description: 'Approve settlements', resource: 'settlements', action: 'approve' },
+      { name: 'settlements.reject', description: 'Reject settlements', resource: 'settlements', action: 'reject' },
+      
+      // Dashboard permissions
+      { name: 'dashboard.view', description: 'View dashboard', resource: 'dashboard', action: 'view' },
+      { name: 'dashboard.stats', description: 'View dashboard statistics', resource: 'dashboard', action: 'stats' },
+      
+      // Audit log permissions
+      { name: 'audit.view', description: 'View audit logs', resource: 'audit', action: 'view' },
+      
+      // Role permissions
+      { name: 'roles.view', description: 'View roles', resource: 'roles', action: 'view' },
+      { name: 'roles.create', description: 'Create roles', resource: 'roles', action: 'create' },
+      { name: 'roles.update', description: 'Update roles', resource: 'roles', action: 'update' },
+      { name: 'roles.delete', description: 'Delete roles', resource: 'roles', action: 'delete' },
+      
+      // Permission permissions
+      { name: 'permissions.view', description: 'View permissions', resource: 'permissions', action: 'view' },
+      { name: 'permissions.assign', description: 'Assign permissions', resource: 'permissions', action: 'assign' },
+      
+      // Admin access
+      { name: 'admin.access', description: 'Admin access', resource: 'admin', action: 'access' }
     ];
 
     console.log('📝 Creating permissions...');
@@ -58,14 +100,103 @@ const seedDatabase = async () => {
       create: { name: 'user', description: 'Regular user role' }
     });
 
+    // Create subadmin roles
+    const moderatorRole = await database.getClient().role.upsert({
+      where: { name: 'MODERATOR' },
+      update: { name: 'MODERATOR', description: 'Moderator role - Can manage users and orders' },
+      create: { name: 'MODERATOR', description: 'Moderator role - Can manage users and orders' }
+    });
+
+    const supportRole = await database.getClient().role.upsert({
+      where: { name: 'SUPPORT' },
+      update: { name: 'SUPPORT', description: 'Support role - Can view and assist users' },
+      create: { name: 'SUPPORT', description: 'Support role - Can view and assist users' }
+    });
+
+    const analystRole = await database.getClient().role.upsert({
+      where: { name: 'ANALYST' },
+      update: { name: 'ANALYST', description: 'Analyst role - Can view analytics and reports' },
+      create: { name: 'ANALYST', description: 'Analyst role - Can view analytics and reports' }
+    });
+
     // Assign permissions to roles
     console.log('🔗 Assigning permissions to roles...');
     
-    // Admin gets all permissions
+    // Get all permissions
     const allPermissions = await database.getClient().permission.findMany();
+    const permissionMap = {};
+    allPermissions.forEach(p => {
+      permissionMap[p.name] = p;
+    });
+    
+    // Admin gets all permissions
     for (const permission of allPermissions) {
       await database.getClient().role.update({
         where: { id: adminRole.id },
+        data: {
+          permissions: {
+            connect: { id: permission.id }
+          }
+        }
+      });
+    }
+
+    // MODERATOR permissions: Users (view, update, block), Orders (view, update), Vendors (view, verify)
+    const moderatorPermissions = [
+      permissionMap['users.view'],
+      permissionMap['users.update'],
+      permissionMap['users.block'],
+      permissionMap['orders.view'],
+      permissionMap['orders.update'],
+      permissionMap['vendors.view'],
+      permissionMap['vendors.verify'],
+      permissionMap['dashboard.view']
+    ].filter(Boolean);
+
+    for (const permission of moderatorPermissions) {
+      await database.getClient().role.update({
+        where: { id: moderatorRole.id },
+        data: {
+          permissions: {
+            connect: { id: permission.id }
+          }
+        }
+      });
+    }
+
+    // SUPPORT permissions: Users (view, viewDetails), Orders (view), Contracts (view), Audit Logs (view)
+    const supportPermissions = [
+      permissionMap['users.view'],
+      permissionMap['users.viewDetails'],
+      permissionMap['orders.view'],
+      permissionMap['contracts.view'],
+      permissionMap['audit.view'],
+      permissionMap['dashboard.view']
+    ].filter(Boolean);
+
+    for (const permission of supportPermissions) {
+      await database.getClient().role.update({
+        where: { id: supportRole.id },
+        data: {
+          permissions: {
+            connect: { id: permission.id }
+          }
+        }
+      });
+    }
+
+    // ANALYST permissions: Dashboard (view, stats), Orders (view), Contracts (view), Audit Logs (view)
+    const analystPermissions = [
+      permissionMap['dashboard.view'],
+      permissionMap['dashboard.stats'],
+      permissionMap['orders.view'],
+      permissionMap['contracts.view'],
+      permissionMap['audit.view']
+    ].filter(Boolean);
+
+    for (const permission of analystPermissions) {
+      await database.getClient().role.update({
+        where: { id: analystRole.id },
         data: {
           permissions: {
             connect: { id: permission.id }

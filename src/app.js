@@ -174,6 +174,7 @@ app.use('/api/admin/contract-games', require('./modules/admin/contractGames').ro
 app.use('/api/admin/pricing', require('./modules/admin/pricing').router);
 app.use('/api/admin/vendors', require('./modules/admin/vendors').router);
 app.use('/api/admin/users', require('./modules/admin/users').router);
+app.use('/api/admin/subadmins', require('./modules/admin/subadmins').router);
 app.use('/api/admin', adminModule.router);
 app.use('/api/contracts', contractModule.router);
 app.use('/api/mentor', require('./modules/mentor').router);

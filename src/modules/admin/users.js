@@ -1,7 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const database = require('../../config/database');
-const { authenticate, authorize } = require('../../middleware/auth');
+const { authenticate, authorize, requirePermission } = require('../../middleware/auth');
 const { apiLimiter } = require('../../middleware/rateLimit');
 const { sendResponse, sendError } = require('../../utils/response');
 const AuditLogger = require('../logging/auditLogger');
@@ -11,9 +11,9 @@ const router = express.Router();
 // Apply rate limiting to all routes
 router.use(apiLimiter);
 
-// All routes require admin authentication
+// All routes require admin authentication (ADMIN or subadmin roles)
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'MODERATOR', 'SUPPORT', 'ANALYST'));
 
 // Validation schemas
 const updateUserSchema = z.object({
@@ -55,7 +55,7 @@ const getClientInfo = (req) => {
  *       201:
  *         description: User created
  */
-router.post('/', async (req, res) => {
+router.post('/', requirePermission('users', 'create'), async (req, res) => {
   try {
     const validatedData = createUserSchema.parse(req.body);
     const prisma = database.getClient();
@@ -157,7 +157,7 @@ router.post('/', async (req, res) => {
  *       200:
  *         description: Users list
  */
-router.get('/', async (req, res) => {
+router.get('/', requirePermission('users', 'view'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -237,7 +237,7 @@ router.get('/', async (req, res) => {
  *       200:
  *         description: User details
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', requirePermission('users', 'viewDetails'), async (req, res) => {
   try {
     const { id } = req.params;
     const prisma = database.getClient();
@@ -301,7 +301,7 @@ router.get('/:id', async (req, res) => {
  *       200:
  *         description: User updated
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requirePermission('users', 'update'), async (req, res) => {
   try {
     const { id } = req.params;
     const validatedData = updateUserSchema.parse(req.body);
@@ -357,7 +357,7 @@ router.put('/:id', async (req, res) => {
  *       200:
  *         description: User status updated
  */
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', requirePermission('users', 'block'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = updateStatusSchema.parse(req.body);
@@ -409,7 +409,7 @@ router.put('/:id/status', async (req, res) => {
  *       200:
  *         description: User orders
  */
-router.get('/:id/orders', async (req, res) => {
+router.get('/:id/orders', requirePermission('orders', 'view'), async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20, status = null } = req.query;
@@ -450,7 +450,7 @@ router.get('/:id/orders', async (req, res) => {
  *       200:
  *         description: User contracts
  */
-router.get('/:id/contracts', async (req, res) => {
+router.get('/:id/contracts', requirePermission('contracts', 'view'), async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -512,7 +512,7 @@ router.get('/:id/contracts', async (req, res) => {
  *       200:
  *         description: User earnings
  */
-router.get('/:id/earnings', async (req, res) => {
+router.get('/:id/earnings', requirePermission('users', 'viewDetails'), async (req, res) => {
   try {
     const { id } = req.params;
     const prisma = database.getClient();
@@ -581,7 +581,7 @@ router.get('/:id/earnings', async (req, res) => {
  *       200:
  *         description: User wallet
  */
-router.get('/:id/wallet', async (req, res) => {
+router.get('/:id/wallet', requirePermission('users', 'viewDetails'), async (req, res) => {
   try {
     const { id } = req.params;
     const prisma = database.getClient();
@@ -632,7 +632,7 @@ router.get('/:id/wallet', async (req, res) => {
  *       200:
  *         description: User bonuses
  */
-router.get('/:id/bonuses', async (req, res) => {
+router.get('/:id/bonuses', requirePermission('users', 'viewDetails'), async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -675,7 +675,7 @@ router.get('/:id/bonuses', async (req, res) => {
  *       200:
  *         description: User settlements
  */
-router.get('/:id/settlements', async (req, res) => {
+router.get('/:id/settlements', requirePermission('settlements', 'view'), async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -728,7 +728,7 @@ router.get('/:id/settlements', async (req, res) => {
  *       200:
  *         description: User audit logs
  */
-router.get('/:id/audit-logs', async (req, res) => {
+router.get('/:id/audit-logs', requirePermission('audit', 'view'), async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;

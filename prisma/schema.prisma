@@ -429,6 +429,9 @@ enum UserRole {
   VENDOR
   MENTOR
   ADMIN
+  MODERATOR
+  SUPPORT
+  ANALYST
 }
 
 enum UserStatus {

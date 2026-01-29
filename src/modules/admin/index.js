@@ -4,15 +4,97 @@ const database = require('../../config/database');
 const { authenticate, authorize, requirePermission } = require('../../middleware/auth');
 const { apiLimiter } = require('../../middleware/rateLimit');
 const AuditLogger = require('../logging/auditLogger');
+const { bootstrapRbac } = require('../../utils/rbacBootstrap');
 
 const router = express.Router();
 
 // Apply rate limiting to all routes
 router.use(apiLimiter);
 
-// All routes require admin authentication
+// All routes require admin authentication (ADMIN or subadmin roles)
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'MODERATOR', 'SUPPORT', 'ANALYST'));
+
+/**
+ * GET /api/admin/me/permissions
+ * Returns effective permissions for current admin-role user (role permissions + direct user permissions).
+ * Used by admin frontend to render menu items safely.
+ */
+router.get('/me/permissions', async (req, res) => {
+  try {
+    const prisma = database.getClient();
+
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    // ADMIN gets all permissions
+    if (req.user.role === 'ADMIN') {
+      const permissions = await prisma.permission.findMany({ orderBy: { name: 'asc' } });
+      return res.json({ success: true, data: { permissions } });
+    }
+
+    const [role, userPerms] = await Promise.all([
+      prisma.role.findUnique({
+        where: { name: req.user.role },
+        include: { permissions: true },
+      }),
+      prisma.userPermission.findMany({
+        where: { userId: req.user.id },
+        include: { permission: true },
+      }),
+    ]);
+
+    const seen = new Set();
+    const permissions = [];
+
+    for (const p of role?.permissions || []) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        permissions.push(p);
+      }
+    }
+
+    for (const up of userPerms) {
+      const p = up.permission;
+      if (p && !seen.has(p.id)) {
+        seen.add(p.id);
+        permissions.push(p);
+      }
+    }
+
+    permissions.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    return res.json({
+      success: true,
+      data: { permissions },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/bootstrap-rbac
+ * Initializes default permissions + roles (idempotent).
+ * This is meant for dev/staging environments where permissions/roles haven't been seeded yet.
+ */
+router.post('/bootstrap-rbac', authorize('ADMIN'), async (req, res) => {
+  try {
+    const result = await bootstrapRbac();
+
+    res.json({
+      success: true,
+      message: 'RBAC bootstrapped successfully',
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 
 // Validation schemas
 const createPermissionSchema = z.object({
@@ -84,7 +166,7 @@ const createRoleSchema = z.object({
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', requirePermission('dashboard', 'stats'), async (req, res) => {
   try {
     const [
       totalUsers,
@@ -222,7 +304,7 @@ router.get('/stats', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/audit-logs', async (req, res) => {
+router.get('/audit-logs', requirePermission('audit', 'view'), async (req, res) => {
   try {
     const {
       userId,
@@ -311,7 +393,7 @@ router.get('/audit-logs', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/permissions', async (req, res) => {
+router.get('/permissions', requirePermission('permissions', 'view'), async (req, res) => {
   try {
     const permissions = await database.getClient().permission.findMany({
       orderBy: { name: 'asc' }
@@ -368,7 +450,7 @@ router.get('/permissions', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/permissions', async (req, res) => {
+router.post('/permissions', requirePermission('permissions', 'view'), async (req, res) => {
   try {
     const validatedData = createPermissionSchema.parse(req.body);
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -443,7 +525,7 @@ router.post('/permissions', async (req, res) => {
  *       404:
  *         description: User or permission not found
  */
-router.post('/permissions/assign', async (req, res) => {
+router.post('/permissions/assign', requirePermission('permissions', 'assign'), async (req, res) => {
   try {
     const validatedData = assignPermissionSchema.parse(req.body);
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -542,7 +624,7 @@ router.post('/permissions/assign', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.delete('/permissions/:userId/:permissionId', async (req, res) => {
+router.delete('/permissions/:userId/:permissionId', requirePermission('permissions', 'assign'), async (req, res) => {
   try {
     const { userId, permissionId } = req.params;
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -594,7 +676,7 @@ router.delete('/permissions/:userId/:permissionId', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/roles', async (req, res) => {
+router.get('/roles', requirePermission('roles', 'view'), async (req, res) => {
   try {
     const roles = await database.getClient().role.findMany({
       include: {
@@ -653,7 +735,7 @@ router.get('/roles', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/roles', async (req, res) => {
+router.post('/roles', requirePermission('roles', 'create'), async (req, res) => {
   try {
     const validatedData = createRoleSchema.parse(req.body);
     const { ipAddress, userAgent } = getClientInfo(req);
@@ -665,6 +747,9 @@ router.post('/roles', async (req, res) => {
         permissions: validatedData.permissionIds ? {
           connect: validatedData.permissionIds.map(id => ({ id }))
         } : undefined
+      },
+      include: {
+        permissions: true
       }
     });
 
@@ -683,6 +768,316 @@ router.post('/roles', async (req, res) => {
       success: true,
       message: 'Role created successfully',
       data: role
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/roles/:id:
+ *   get:
+ *     summary: Get role details
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Role details retrieved successfully
+ */
+router.get('/roles/:id', requirePermission('roles', 'view'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const role = await database.getClient().role.findUnique({
+      where: { id },
+      include: {
+        permissions: true
+      }
+    });
+
+    if (!role) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+
+    // Get users with this role
+    const usersWithRole = await database.getClient().user.findMany({
+      where: { role: role.name },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        status: true
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...role,
+        users: usersWithRole,
+        userCount: usersWithRole.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/roles/:id:
+ *   put:
+ *     summary: Update role
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Role updated successfully
+ */
+router.put('/roles/:id', requirePermission('roles', 'update'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, permissionIds } = z.object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      permissionIds: z.array(z.string()).optional()
+    }).parse(req.body);
+    
+    const { ipAddress, userAgent } = getClientInfo(req);
+
+    // Check if role exists
+    const existingRole = await database.getClient().role.findUnique({
+      where: { id }
+    });
+
+    if (!existingRole) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+
+    // Don't allow updating predefined role names
+    const predefinedRoles = ['ADMIN', 'MODERATOR', 'SUPPORT', 'ANALYST', 'admin', 'user', 'vendor', 'mentor'];
+    if (name && predefinedRoles.includes(name.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot update predefined role name'
+      });
+    }
+
+    // Update role
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+
+    const role = await database.getClient().role.update({
+      where: { id },
+      data: {
+        ...updateData,
+        ...(permissionIds !== undefined && {
+          permissions: {
+            set: [],
+            connect: permissionIds.map(permId => ({ id: permId }))
+          }
+        })
+      },
+      include: {
+        permissions: true
+      }
+    });
+
+    // Log the action
+    await AuditLogger.logUserAction(
+      req.user.id,
+      'UPDATE_ROLE',
+      'Role',
+      id,
+      { name, description, permissionIds },
+      ipAddress,
+      userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'Role updated successfully',
+      data: role
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/roles/:id:
+ *   delete:
+ *     summary: Delete role
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Role deleted successfully
+ */
+router.delete('/roles/:id', requirePermission('roles', 'delete'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ipAddress, userAgent } = getClientInfo(req);
+
+    // Check if role exists
+    const role = await database.getClient().role.findUnique({
+      where: { id }
+    });
+
+    if (!role) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+
+    // Don't allow deleting predefined roles
+    const predefinedRoles = ['ADMIN', 'MODERATOR', 'SUPPORT', 'ANALYST', 'admin', 'user', 'vendor', 'mentor'];
+    if (predefinedRoles.includes(role.name.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete predefined role'
+      });
+    }
+
+    // Check if any users have this role
+    const usersWithRole = await database.getClient().user.count({
+      where: { role: role.name }
+    });
+
+    if (usersWithRole > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete role: ${usersWithRole} user(s) have this role`
+      });
+    }
+
+    // Delete role
+    await database.getClient().role.delete({
+      where: { id }
+    });
+
+    // Log the action
+    await AuditLogger.logUserAction(
+      req.user.id,
+      'DELETE_ROLE',
+      'Role',
+      id,
+      { roleName: role.name },
+      ipAddress,
+      userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'Role deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/roles/:id/permissions:
+ *   post:
+ *     summary: Assign permissions to role
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Permissions assigned successfully
+ */
+router.post('/roles/:id/permissions', requirePermission('permissions', 'assign'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permissionIds } = z.object({
+      permissionIds: z.array(z.string())
+    }).parse(req.body);
+    
+    const { ipAddress, userAgent } = getClientInfo(req);
+
+    // Check if role exists
+    const role = await database.getClient().role.findUnique({
+      where: { id }
+    });
+
+    if (!role) {
+      return res.status(404).json({
+        success: false,
+        message: 'Role not found'
+      });
+    }
+
+    // Update role permissions
+    const updatedRole = await database.getClient().role.update({
+      where: { id },
+      data: {
+        permissions: {
+          set: [],
+          connect: permissionIds.map(permId => ({ id: permId }))
+        }
+      },
+      include: {
+        permissions: true
+      }
+    });
+
+    // Log the action
+    await AuditLogger.logUserAction(
+      req.user.id,
+      'ASSIGN_ROLE_PERMISSIONS',
+      'Role',
+      id,
+      { permissionIds },
+      ipAddress,
+      userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'Permissions assigned successfully',
+      data: updatedRole
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -729,7 +1124,7 @@ router.post('/roles', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/sessions', async (req, res) => {
+router.get('/sessions', requirePermission('admin', 'access'), async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
@@ -802,7 +1197,7 @@ router.get('/sessions', async (req, res) => {
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.delete('/sessions/:sessionId', async (req, res) => {
+router.delete('/sessions/:sessionId', requirePermission('admin', 'access'), async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { ipAddress, userAgent } = getClientInfo(req);
